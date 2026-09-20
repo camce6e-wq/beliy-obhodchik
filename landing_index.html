@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Белый Обходчик — Интернет без ограничений на Keenetic</title>
+    <style>
+        /* Общие стили */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Шапка */
+        header {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .logo span {
+            color: #764ba2;
+        }
+        
+        nav a {
+            margin-left: 30px;
+            text-decoration: none;
+            color: #555;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        
+        nav a:hover {
+            color: #667eea;
+        }
+        
+        /* Герой-секция */
+        .hero {
+            background: white;
+            padding: 80px 0;
+            text-align: center;
+            border-radius: 0 0 30px 30px;
+            margin-bottom: 50px;
+        }
+        
+        .hero h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .hero h2 {
+            font-size: 24px;
+            color: #666;
+            margin-bottom: 40px;
+            font-weight: 400;
+        }
+        
+        .highlight {
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 40px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-size: 18px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        /* Секция "Как это работает" */
+        .how-it-works {
+            background: white;
+            padding: 60px 0;
+            margin-bottom: 50px;
+            border-radius: 30px;
+        }
+        
+        .section-title {
+            text-align: center;
+            margin-bottom: 50px;
+            font-size: 36px;
+            color: #333;
+        }
+        
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .step {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        
+        .step:hover {
+            transform: translateY(-5px);
+        }
+        
+        .step-number {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            line-height: 40px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        
+        .step h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        /* Секция "Что вы получаете" */
+        .features {
+            background: white;
+            padding: 60px 0;
+            margin-bottom: 50px;
+            border-radius: 30px;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+        }
+        
+        .feature {
+            text-align: center;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+        }
+        
+        .feature-icon {
+            font-size: 40px;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+        
+        /* Секция "Почему это безопасно" */
+        .safety {
+            background: white;
+            padding: 60px 0;
+            margin-bottom: 50px;
+            border-radius: 30px;
+        }
+        
+        .safety-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .safety-points {
+            margin-top: 30px;
+        }
+        
+        .safety-point {
+            margin-bottom: 20px;
+            padding-left: 30px;
+            position: relative;
+        }
+        
+        .safety-point:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        /* Секция "Часто задаваемые вопросы" */
+        .faq {
+            background: white;
+            padding: 60px 0;
+            margin-bottom: 50px;
+            border-radius: 30px;
+        }
+        
+        .faq-item {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }
+        
+        .faq-question {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+            cursor: pointer;
+        }
+        
+        .faq-answer {
+            color: #666;
+        }
+        
+        /* Секция "Цены" */
+        .pricing {
+            background: white;
+            padding: 60px 0;
+            margin-bottom: 50px;
+            border-radius: 30px;
+        }
+        
+        .pricing-plans {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .plan {
+            background: #f8f9fa;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .plan.recommended {
+            border: 2px solid #667eea;
+            transform: scale(1.05);
+        }
+        
+        .plan-badge {
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #667eea;
+            color: white;
+            padding: 5px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        .plan-price {
+            font-size: 48px;
+            font-weight: bold;
+            color: #333;
+            margin: 20px 0;
+        }
+        
+        .plan-features {
+            list-style: none;
+            margin: 30px 0;
+        }
+        
+        .plan-features li {
+            margin-bottom: 10px;
+            padding-left: 20px;
+            position: relative;
+        }
+        
+        .plan-features li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #4CAF50;
+        }
+        
+        /* Подвал */
+        footer {
+            background: #333;
+            color: white;
+            padding: 60px 0 30px;
+            margin-top: 50px;
+        }
+        
+        .footer-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+        
+        .footer-column h4 {
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+        
+        .footer-links {
+            list-style: none;
+        }
+        
+        .footer-links li {
+            margin-bottom: 10px;
+        }
+        
+        .footer-links a {
+            color: #ccc;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .footer-links a:hover {
+            color: #667eea;
+        }
+        
+        .copyright {
+            text-align: center;
+            padding-top: 30px;
+            border-top: 1px solid #444;
+            color: #999;
+        }
+        
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 36px;
+            }
+            
+            .hero h2 {
+                font-size: 18px;
+            }
+            
+            .section-title {
+                font-size: 28px;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            nav {
+                margin-top: 20px;
+            }
+            
+            nav a {
+                margin: 0 10px;
+            }
+            
+            .plan.recommended {
+                transform: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Шапка -->
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <a href="#" class="logo">Белый<span>Обходчик</span></a>
+                <nav>
+                    <a href="#how-it-works">Как это работает</a>
+                    <a href="#features">Что вы получаете</a>
+                    <a href="#safety">Безопасность</a>
+                    <a href="#pricing">Цены</a>
+                    <a href="#faq">Вопросы</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Герой-секция -->
+    <section class="hero">
+        <div class="container">
+            <h1>Интернет без ограничений на вашем Keenetic</h1>
+            <h2>Автоматическая настройка за <span class="highlight">15 минут</span> без технических знаний</h2>
+            <a href="#pricing" class="cta-button">Получить доступ за 500 ₽</a>
+        </div>
+    </section>
+
+    <!-- Как это работает -->
+    <section id="how-it-works" class="how-it-works">
+        <div class="container">
+            <h2 class="section-title">Как это работает</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Покупаете VPS за границей</h3>
+                    <p>Обычный сервер в Германии, Турции или США (100-200 ₽/месяц)</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Запускаете наш скрипт</h3>
+                    <p>Копируете одну команду → всё настраивается автоматически</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Загружаете файл в роутер</h3>
+                    <p>Скачиваете архив → загружаете в Keenetic → интернет работает</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Что вы получаете -->
+    <section id="features" class="features">
+        <div class="container">
+            <h2 class="section-title">Что вы получаете</h2>
+            <div class="feature-grid">
+                <div class="feature">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Автоматическая настройка</h3>
+                    <p>Никаких команд в терминале. Просто запустили скрипт — всё готово.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🔄</div>
+                    <h3>Автообновления</h3>
+                    <p>Если маскировка перестанет работать — система сама найдёт новую.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🛡️</div>
+                    <h3>Раздельная маршрутизация</h3>
+                    <p>Только заблокированные сайты через VPN, остальное — напрямую.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📱</div>
+                    <h3>Работает на всех устройствах</h3>
+                    <p>Ноутбуки, телефоны, телевизоры — всё подключается через роутер.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Почему это безопасно -->
+    <section id="safety" class="safety">
+        <div class="container">
+            <h2 class="section-title">Почему это безопасно</h2>
+            <div class="safety-content">
+                <p>Мы не предоставляем VPN-услуги. Вы настраиваете свой сервер для личного использования.</p>
+                
+                <div class="safety-points">
+                    <div class="safety-point">
+                        <strong>Ваш сервер</strong> — вы арендуете VPS у Hetzner, OVH или другого провайдера
+                    </div>
+                    <div class="safety-point">
+                        <strong>Ваши настройки</strong> — скрипт только помогает автоматизировать процесс
+                    </div>
+                    <div class="safety-point">
+                        <strong>Ваш интернет</strong> — мы не имеем доступа к вашему трафику
+                    </div>
+                    <div class="safety-point">
+                        <strong>Легально</strong> — настройка своего оборудования для личного использования
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Цены -->
+    <section id="pricing" class="pricing">
+        <div class="container">
+            <h2 class="section-title">Просто и понятно: 500 ₽ один раз</h2>
+            <div class="pricing-plans">
+                <div class="plan recommended">
+                    <div class="plan-badge">Рекомендуем</div>
+                    <h3>Полный пакет</h3>
+                    <div class="plan-price">500 ₽</div>
+                    <p>Единоразовый платёж</p>
+                    <ul class="plan-features">
+                        <li>Автоматический установщик для VPS</li>
+                        <li>Готовый конфиг для Keenetic</li>
+                        <li>Правила HydraRoute</li>
+                        <li>Автообновления SNI-доноров</li>
+                        <li>Поддержка в Telegram 30 дней</li>
+                        <li>Инструкция на 5 шагов</li>
+                    </ul>
+                    <a href="#" class="cta-button">Купить сейчас</a>
+                </div>
+            </div>
+            <p style="text-align: center; margin-top: 30px; color: #666;">
+                + стоимость VPS (100-200 ₽/месяц у провайдера)
+            </p>
+        </div>
+    </section>
+
+    <!-- Часто задаваемые вопросы -->
+    <section id="faq" class="faq">
+        <div class="container">
+            <h2 class="section-title">Часто задаваемые вопросы</h2>
+            <div class="faq-list">
+                <div class="faq-item">
+                    <div class="faq-question">Нужны ли технические знания?</div>
+                    <div class="faq-answer">Нет. Всё делается автоматически: скопировали команду → вставили → готово.</div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question">Что если маскировка перестанет работать?</div>
+                    <div class="faq-answer">Система сама найдёт новую и обновит настройки в роутере.</div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question">Это легально?</div>
+                    <div class="faq-answer">Да. Вы настраиваете свой сервер для личного использования. Это как настроить компьютер.</div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question">Нужно ли платить каждый месяц?</div>
+                    <div class="faq-answer">Только за VPS (100-200 ₽/месяц). Наши обновления бесплатны.</div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question">А если не получится?</div>
+                    <div class="faq-answer">Вернём деньги или поможем настроить. Мы заинтересованы в том, чтобы у вас всё работало.</div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question">Какие роутеры поддерживаются?</div>
+                    <div class="faq-answer">Все модели Keenetic с возможностью установки Xray/Sing-box.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Подвал -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-column">
+                    <h4>БелыйОбходчик</h4>
+                    <p>Автоматическая система настройки интернета без ограничений на Keenetic роутерах.</p>
+                </div>
+                <div class="footer-column">
+                    <h4>Ссылки</h4>
+                    <ul class="footer-links">
+                        <li><a href="#how-it-works">Как это работает</a></li>
+                        <li><a href="#features">Что вы получаете</a></li>
+                        <li><a href="#safety">Безопасность</a></li>
+                        <li><a href="#pricing">Цены</a></li>
+                        <li><a href="#faq">Вопросы</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Поддержка</h4>
+                    <ul class="footer-links">
+                        <li>Telegram: @beliy_obhodchik</li>
+                        <li>Email: support@beliy-obhodchik.ru</li>
+                        <li>Часы работы: 10:00-22:00</li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Юридическая информация</h4>
+                    <p>ИП Иванов И.И.<br>
+                    ОГРНИП: 123456789012345<br>
+                    Все платежи защищены</p>
+                </div>
+            </div>
+            <div class="copyright">
+                <p>© 2026 БелыйОбходчик. Все права защищены.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Простая анимация FAQ
+        document.querySelectorAll('.faq-question').forEach(question => {
+            question.addEventListener('click', () => {
+                const answer = question.nextElementSibling;
+                answer.style.display = answer.style.display === 'block' ? 'none' : 'block';
+            });
+        });
+
+        // Плавная прокрутка для навигации
+        document.querySelectorAll('nav a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href');
+                const targetElement = document.querySelector(targetId);
+                
+                if (targetElement) {
+                    window.scrollTo({
+                        top: targetElement.offsetTop - 80,
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+
+        // Кнопка покупки
+        document.querySelectorAll('.cta-button').forEach(button => {
+            if (button.textContent.includes('Купить')) {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    alert('В разработке: будет переход на страницу оплаты через Telegram-бота');
+                });
+            }
+        });
+
+        // Анимация при прокрутке
+        const observerOptions = {
+            threshold: 0.2,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        // Применяем анимацию к элементам
+        document.querySelectorAll('.step, .feature, .faq-item').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>
