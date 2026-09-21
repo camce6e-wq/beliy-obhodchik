@@ -69,19 +69,26 @@ PROMO_CODE = "BELOBH"
 # ~250⭐: покупателю ~450-650₽ (в зависимости от канала), боту на вывод ~$3.25.
 STARS_PRICE = 250
 
-# Оборот DPI: запрещаем keep-alive, чтобы каждый запрос к api.telegram.org
-# шёл по свежему короткому TCP-соединению (долгие соединения сеть сбрасывает).
-import telebot.apihelper as _ah
-_orig_session = _ah._get_req_session
+# Оборот DPI нужен только за "замедляющей" сетью (домашний ПК, РФ).
+# На нормальном VPS оставьте выключенным (по умолчанию): тогда используется
+# обычный long polling с keep-alive.
+#   DPI_WORKAROUND=1  -> короткие соединения (Connection: close) + short polling
+#   DPI_WORKAROUND=0  -> нормальный режим для сервера (по умолчанию)
+DPI_WORKAROUND = os.environ.get('DPI_WORKAROUND', '').strip().lower() in ('1', 'true', 'yes', 'on')
 
+if DPI_WORKAROUND:
+    import telebot.apihelper as _ah
+    _orig_session = _ah._get_req_session
 
-def _fresh_session():
-    s = _orig_session()
-    s.headers['Connection'] = 'close'
-    return s
+    def _fresh_session():
+        s = _orig_session()
+        s.headers['Connection'] = 'close'
+        return s
 
+    _ah._get_req_session = _fresh_session
 
-_ah._get_req_session = _fresh_session
+# Значение getUpdates(timeout=...). При DPI-костыле 0 (короткие опросы), иначе 20.
+LONG_POLLING_TIMEOUT = int(os.environ.get('LONG_POLLING_TIMEOUT', '0' if DPI_WORKAROUND else '20'))
 
 class PaymentSystem:
     """Класс для обработки платежей (упрощённая версия)"""
@@ -882,7 +889,7 @@ class AutoConfigBot:
         """Запуск бота"""
         logger.info("Запускаю Telegram-бота...")
         threading.Thread(target=self._check_payments_loop, daemon=True).start()
-        self.bot.infinity_polling(none_stop=True, interval=2, timeout=20, long_polling_timeout=0)
+        self.bot.infinity_polling(none_stop=True, interval=2, timeout=20, long_polling_timeout=LONG_POLLING_TIMEOUT)
 
 
 def create_demo_bot():
