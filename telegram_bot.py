@@ -668,7 +668,11 @@ class AutoConfigBot:
                 "⏳ Подключаюсь к вашему VPS и ставлю Xray... Это занимает 1-3 минуты."
             )
             ud = self.user_data.get(user_id, {})
-            self._run_ssh_install(user_id, message.chat.id, password, ud)
+            threading.Thread(
+                target=self._run_ssh_install,
+                args=(user_id, message.chat.id, password, ud),
+                daemon=True,
+            ).start()
         
         @self.bot.callback_query_handler(func=lambda call: True)
         def handle_callback(call):
@@ -1046,14 +1050,7 @@ class AutoConfigBot:
             
             try:
                 self.payment_system.confirm_payment(payload)
-                if self._offer_install_choice(user_id, message.chat.id):
-                    self.bot.send_message(
-                        message.chat.id,
-                        f"✅ *Оплата {stars} ⭐ подтверждена!* "
-                        f"Выберите, как поставить Xray на ваш VPS:",
-                        parse_mode='Markdown'
-                    )
-                else:
+                if not self._offer_install_choice(user_id, message.chat.id):
                     ok = self.generate_and_send_config(user_id, message.chat.id)
                     if ok:
                         self.bot.send_message(
@@ -1212,13 +1209,7 @@ class AutoConfigBot:
             try:
                 self.payment_system.confirm_payment(rec['payment_id'])
                 self.user_data[rec['user_id']] = rec
-                if self._offer_install_choice(rec['user_id'], rec['chat_id']):
-                    self.bot.send_message(
-                        rec['chat_id'],
-                        f"✅ *Оплата подтверждена!* Выберите, как поставить Xray на ваш VPS:",
-                        parse_mode='Markdown'
-                    )
-                else:
+                if not self._offer_install_choice(rec['user_id'], rec['chat_id']):
                     ok = self.generate_and_send_config(
                         rec['user_id'], rec['chat_id'], data=rec
                     )
