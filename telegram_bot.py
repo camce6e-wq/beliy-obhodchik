@@ -57,15 +57,18 @@ TELEGRAM_BOT_TOKEN = os.environ.get(
 CRYPTOPAY_TOKEN = os.environ.get('CRYPTOPAY_TOKEN', "")
 
 # Рекомендуемые VPS-площадки — для монетизации через партнёрские ссылки.
-# Замените ref=XXXX / refcode=XXXX на ваши коды партнёрских программ.
 # url="" — площадка показывается без ссылки.
 VPS_RECOMMENDATIONS = [
+    ("AdminVPS", "Россия/Европа", "от 150 ₽/месяц", "https://my.adminvps.ru/aff.php?aff=32386"),
     ("Hetzner Cloud", "Германия", "от 3 €/месяц", "https://hetzner.cloud/?ref=XXXX"),
     ("TimeWeb", "Финляндия", "от 120 ₽/месяц", ""),
     ("AWS Lightsail", "США", "от 3.5 $/месяц", ""),
     ("DigitalOcean", "США", "от 4 $/месяц", "https://www.digitalocean.com/?refcode=XXXX"),
     ("Vultr", "Япония/Франкфурт", "от 2.5 $/месяц", "https://www.vultr.com/?ref=XXXX"),
 ]
+
+# Промокод на скидку для рекомендуемых площадок (пусто = не показывать).
+PROMO_CODE = "BELOBH"
 
 # Оплата звёздами Telegram: цена в звёздах за настройку.
 # ~250⭐: покупателю ~450-650₽ (в зависимости от канала), боту на вывод ~$3.25.
@@ -871,11 +874,13 @@ class AutoConfigBot:
 
     @staticmethod
     def _vps_recommendations_text() -> str:
-        """Список рекомендуемых VPS с реферальными ссылками."""
+        """Список рекомендуемых VPS с реферальными ссылками и промокодом."""
         lines = []
         for name, country, price, url in VPS_RECOMMENDATIONS:
             label = f"{name} ({country}) - {price}"
             lines.append(f"• [{label}]({url})" if url else f"• {label}")
+        if PROMO_CODE:
+            lines.append(f"\n🎁 Промокод на скидку: `{PROMO_CODE}`")
         return "\n".join(lines)
 
     def start(self):
