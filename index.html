@@ -507,7 +507,7 @@
                         <li>Поддержка в Telegram 30 дней</li>
                         <li>Инструкция на 5 шагов</li>
                     </ul>
-                    <a href="#" class="cta-button">Купить сейчас</a>
+                    <a href="https://t.me/beliy_obhodchik_bot" class="cta-button" target="_blank" rel="noopener">Купить сейчас</a>
                 </div>
             </div>
             <p style="text-align: center; margin-top: 30px; color: #666;">
@@ -570,16 +570,17 @@
                 <div class="footer-column">
                     <h4>Поддержка</h4>
                     <ul class="footer-links">
-                        <li>Telegram: @beliy_obhodchik</li>
-                        <li>Email: support@beliy-obhodchik.ru</li>
+                        <li>Telegram: <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">@beliy_obhodchik_bot</a></li>
+                        <li>Оформить заказ: <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">открыть бота</a></li>
                         <li>Часы работы: 10:00-22:00</li>
                     </ul>
                 </div>
                 <div class="footer-column">
-                    <h4>Юридическая информация</h4>
-                    <p>ИП Иванов И.И.<br>
-                    ОГРНИП: 123456789012345<br>
-                    Все платежи защищены</p>
+                    <h4>Оплата</h4>
+                    <p>Оплата проходит внутри Telegram-бота:<br>
+                    • 💳 Crypto Bot (USDT)<br>
+                    • ⭐ Звёзды Telegram<br>
+                    Конфиг выдаётся автоматически после оплаты.</p>
                 </div>
             </div>
             <div class="copyright">
@@ -613,12 +614,17 @@
             });
         });
 
-        // Кнопка покупки
+        // Кнопка покупки: внешние ссылки открываются как обычно,
+        // внутренние якоря — плавной прокруткой
         document.querySelectorAll('.cta-button').forEach(button => {
-            if (button.textContent.includes('Купить')) {
+            const href = button.getAttribute('href') || '';
+            if (href.startsWith('#')) {
                 button.addEventListener('click', function(e) {
                     e.preventDefault();
-                    alert('В разработке: будет переход на страницу оплаты через Telegram-бота');
+                    const target = document.querySelector(href);
+                    if (target) {
+                        window.scrollTo({ top: target.offsetTop - 80, behavior: 'smooth' });
+                    }
                 });
             }
         });
