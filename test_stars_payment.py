@@ -67,10 +67,11 @@ bot.user_data[USER] = {
 }
 call = SimpleNamespace(
     from_user=SimpleNamespace(id=USER),
-    message=SimpleNamespace(chat=SimpleNamespace(id=CHAT)),
+    message=SimpleNamespace(chat=SimpleNamespace(id=CHAT, type='private')),
 )
 cb_handler = find_handler("callback_query_handlers")
 call.data = "pay_stars"
+bot.last_cmd.clear()
 cb_handler(call)
 
 assert len(sent_invoices) == 1, "send_invoice не вызван"

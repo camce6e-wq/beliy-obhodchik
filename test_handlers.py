@@ -18,6 +18,12 @@ bot.bot.send_document = lambda chat_id, doc, **kw: captured.append("DOC: " + (kw
 
 class Chat:
     id = 123456789
+    type = 'private'
+
+
+class GroupChat:
+    id = -100123456789
+    type = 'group'
 
 
 class User:
@@ -26,8 +32,8 @@ class User:
 
 
 class Message:
-    def __init__(self, text):
-        self.chat = Chat()
+    def __init__(self, text, chat=None):
+        self.chat = chat or Chat()
         self.from_user = User()
         self.text = text
         self.id = 1
@@ -48,6 +54,7 @@ for command in ("start", "status", "test"):
         print("ХЕНДЛЕР НЕ НАЙДЕН")
         continue
     captured.clear()
+    bot.last_cmd.clear()
     try:
         handler(Message("/" + command))
     except Exception as e:
@@ -57,4 +64,19 @@ for command in ("start", "status", "test"):
         print(text.strip()[:300])
     print()
 
+print("== группа отклонена ==")
+captured.clear()
+handler = find_command_handler("start")
+handler(Message("/start", chat=GroupChat()))
+print(captured[0].strip()[:80] if captured else "НЕТ ОТВЕТА")
+
+print("== антифлуд ==")
+captured.clear()
+bot.last_cmd.clear()
+for _ in range(3):
+    handler(Message("/start"))
+print("первый ответ дам:", captured[0][:40] if captured else "нет")
+print("ответов всего:", len(captured))
+
+print()
 print("OK-DONE")

@@ -69,6 +69,17 @@ PROMO_CODE = "BELOBH"
 # ~250⭐: покупателю ~450-650₽ (в зависимости от канала), боту на вывод ~$3.25.
 STARS_PRICE = 250
 
+# ===== Защита бота от спама и злоупотреблений =====
+# Администраторы (id через запятую): ADMIN_USER_IDS=6002841224,...
+ADMIN_USER_IDS = set(
+    int(x.strip()) for x in os.environ.get('ADMIN_USER_IDS', '').split(',') if x.strip().isdigit()
+)
+# Пауза между командами/кликами одного пользователя (секунды)
+COMMAND_COOLDOWN = float(os.environ.get('COMMAND_COOLDOWN', '2'))
+CALLBACK_COOLDOWN = float(os.environ.get('CALLBACK_COOLDOWN', '2'))
+# Максимум активных (неоплаченных) счетов на одного пользователя
+MAX_PENDING_PER_USER = int(os.environ.get('MAX_PENDING_PER_USER', '1'))
+
 # Оборот DPI нужен только за "замедляющей" сетью (домашний ПК, РФ).
 # На нормальном VPS оставьте выключенным (по умолчанию): тогда используется
 # обычный long polling с keep-alive.
@@ -315,6 +326,10 @@ class AutoConfigBot:
         # Ожидающие оплаты: payment_id -> {payment_id, user_id, chat_id, server_ip, sni_hostname}
         self.pending_payments = {}
 
+        # Защита: антифлуд (user_id -> время) и сдержанные уведомления о флуде
+        self.last_cmd = {}
+        self._spam_notified = {}
+
         # Восстанавливаем ожидающие счета после перезапуска
         for pid, row in self.payment_system.get_active_invoices().items():
             self.pending_payments[pid] = {
@@ -327,14 +342,96 @@ class AutoConfigBot:
 
         # Регистрация обработчиков
         self.register_handlers()
-    
+
+    # ===== Защита от спама и злоупотреблений =====
+
+    def _is_private(self, chat_type) -> bool:
+        return chat_type == 'private'
+
+    def _guard_message(self, message) -> bool:
+        """True, если сообщение можно обрабатывать (только личные чаты)."""
+        chat_type = getattr(message.chat, 'type', None)
+        if chat_type != 'private':
+            try:
+                self.bot.send_message(
+                    message.chat.id,
+                    "ℹ️ Я работаю только в личных сообщениях.\nОткройте @beliy_obhodchik_bot и пишите там.",
+                )
+            except Exception:
+                pass
+            return False
+        return True
+
+    def _guard_callback(self, call) -> bool:
+        chat_type = getattr(getattr(call, 'message', None), 'chat', None)
+        return self._is_private(getattr(chat_type, 'type', None)) if chat_type else False
+
+    def _antiflood(self, user_id: int, cooldown: float = 2.0) -> bool:
+        """True, если пользователь заблокирован антифлудом."""
+        if user_id in ADMIN_USER_IDS:
+            return False
+        now = time.monotonic()
+        last = self.last_cmd.get(user_id)
+        if last is not None and (now - last) < cooldown:
+            return True
+        self.last_cmd[user_id] = now
+        if len(self.last_cmd) > 20000:
+            cutoff = now - 3600
+            self.last_cmd = {k: v for k, v in self.last_cmd.items() if v > cutoff}
+        return False
+
+    def _notify_slow(self, chat_id: int, user_id: int):
+        now = time.monotonic()
+        if now - self._spam_notified.get(user_id, 0) > 15:
+            self._spam_notified[user_id] = now
+            try:
+                self.bot.send_message(chat_id, "⏳ Не так быстро. Подождите пару секунд и повторите.")
+            except Exception:
+                pass
+
+    def _active_pending_for(self, user_id: int) -> Optional[str]:
+        """payment_id активного (неоплаченного) счёта пользователя или None."""
+        for pid, row in self.payment_system.get_active_invoices().items():
+            if row.get('user_id') == user_id:
+                return pid
+        return None
+
+    def _pending_over_limit(self, user_id: int) -> bool:
+        """True, если у пользователя уже есть разрешённое число активных счетов."""
+        if MAX_PENDING_PER_USER <= 0:
+            return False
+        count = sum(
+            1 for _, row in self.payment_system.get_active_invoices().items()
+            if row.get('user_id') == user_id
+        )
+        return count >= MAX_PENDING_PER_USER
+
+    def _resume_pending(self, chat_id: int, user_id: int) -> bool:
+        """При наличии активного счёта отправляет кнопку оплаты. True, если счёт найден."""
+        for _, row in self.payment_system.get_active_invoices().items():
+            if row.get('user_id') == user_id and row.get('pay_url'):
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton("💳 Оплатить активный счёт", url=row['pay_url']))
+                self.bot.send_message(
+                    chat_id,
+                    "⏳ У вас уже есть активный счёт:",
+                    reply_markup=markup,
+                )
+                return True
+        return False
+
     def register_handlers(self):
         """Регистрация обработчиков команд"""
         
         @self.bot.message_handler(commands=['start', 'help'])
         def send_welcome(message):
+            if not self._guard_message(message):
+                return
             user_id = message.from_user.id
             username = message.from_user.username or str(user_id)
+            if self._antiflood(user_id, COMMAND_COOLDOWN):
+                self._notify_slow(message.chat.id, user_id)
+                return
             
             welcome_text = """
 👋 *Добро пожаловать в БелыйОбходчик!*
@@ -369,8 +466,13 @@ class AutoConfigBot:
         
         @self.bot.message_handler(commands=['buy'])
         def start_purchase(message):
+            if not self._guard_message(message):
+                return
             user_id = message.from_user.id
             username = message.from_user.username or str(user_id)
+            if self._antiflood(user_id, COMMAND_COOLDOWN):
+                self._notify_slow(message.chat.id, user_id)
+                return
             
             # Проверяем активные заказы
             orders = self.payment_system.get_user_orders(user_id)
@@ -387,7 +489,16 @@ class AutoConfigBot:
                     reply_markup=markup
                 )
                 return
-            
+
+            # Антиспам: не создаём новые счета, пока не оплачен активный
+            if self._pending_over_limit(user_id):
+                if not self._resume_pending(message.chat.id, user_id):
+                    self.bot.send_message(
+                        message.chat.id,
+                        "⏳ У вас уже есть активный счёт. Оплатите его и повторите попытку.",
+                    )
+                return
+
             # Начинаем процесс покупки
             self.user_states[user_id] = "awaiting_server_ip"
             self.user_data[user_id] = {}
@@ -420,8 +531,13 @@ class AutoConfigBot:
         
         @self.bot.message_handler(func=lambda message: self.get_user_state(message.from_user.id) == "awaiting_server_ip")
         def process_server_ip(message):
+            if not self._guard_message(message):
+                return
             user_id = message.from_user.id
             server_ip = message.text.strip()
+            if self._antiflood(user_id, COMMAND_COOLDOWN):
+                self._notify_slow(message.chat.id, user_id)
+                return
             
             # Простая валидация IP
             import re
@@ -475,7 +591,12 @@ class AutoConfigBot:
         
         @self.bot.callback_query_handler(func=lambda call: True)
         def handle_callback(call):
+            if not self._guard_callback(call):
+                return
             user_id = call.from_user.id
+            if self._antiflood(user_id, CALLBACK_COOLDOWN):
+                self._notify_slow(call.message.chat.id, user_id)
+                return
             
             if call.data == "make_payment":
                 # Создаём счёт в Crypto Bot
@@ -489,6 +610,15 @@ class AutoConfigBot:
                         call.message.chat.id,
                         "⚠️ Оплата временно недоступна. Обратитесь в поддержку: @beliy_obhodchik_support"
                     )
+                    return
+
+                # Антиспам: максимум активных счетов на пользователя
+                if self._pending_over_limit(user_id):
+                    if not self._resume_pending(call.message.chat.id, user_id):
+                        self.bot.send_message(
+                            call.message.chat.id,
+                            "⏳ У вас уже есть активный счёт. Оплатите его и повторите попытку.",
+                        )
                     return
 
                 try:
@@ -507,6 +637,7 @@ class AutoConfigBot:
                         'chat_id': call.message.chat.id,
                         'server_ip': ud.get('server_ip'),
                         'sni_hostname': ud.get('sni_hostname'),
+                        'pay_url': pay_url,
                     }
                     self.payment_system.create_invoice_record(
                         invoice_id=invoice_id,
@@ -539,6 +670,13 @@ class AutoConfigBot:
                 payment_id = self.user_data.get(user_id, {}).get('payment_id')
                 if not payment_id:
                     self.bot.send_message(call.message.chat.id, "❌ Данные заказа потеряны. Наберите /buy заново.")
+                    return
+                if self._pending_over_limit(user_id):
+                    if not self._resume_pending(call.message.chat.id, user_id):
+                        self.bot.send_message(
+                            call.message.chat.id,
+                            "⏳ У вас уже есть активный счёт. Оплатите его и повторите попытку.",
+                        )
                     return
                 prices = [types.LabeledPrice(
                     label="БелыйОбходчик — автоматическая настройка",
@@ -617,7 +755,12 @@ class AutoConfigBot:
         
         @self.bot.message_handler(commands=['myorders'])
         def show_orders(message):
+            if not self._guard_message(message):
+                return
             user_id = message.from_user.id
+            if self._antiflood(user_id, COMMAND_COOLDOWN):
+                self._notify_slow(message.chat.id, user_id)
+                return
             orders = self.payment_system.get_user_orders(user_id)
             
             if not orders:
@@ -643,6 +786,12 @@ class AutoConfigBot:
         
         @self.bot.message_handler(commands=['status'])
         def system_status(message):
+            if not self._guard_message(message):
+                return
+            user_id = message.from_user.id
+            if self._antiflood(user_id, COMMAND_COOLDOWN):
+                self._notify_slow(message.chat.id, user_id)
+                return
             stats = self.sni_db.get_stats()
             
             status_text = f"""
@@ -672,7 +821,12 @@ class AutoConfigBot:
         @self.bot.message_handler(commands=['test'])
         def test_generation(message):
             """Тестовая команда для генерации конфига"""
+            if not self._guard_message(message):
+                return
             user_id = message.from_user.id
+            if self._antiflood(user_id, COMMAND_COOLDOWN * 3):
+                self._notify_slow(message.chat.id, user_id)
+                return
             
             try:
                 # Быстрая генерация для теста
@@ -702,6 +856,43 @@ class AutoConfigBot:
                     message.chat.id,
                     f"❌ Ошибка: {str(e)}"
                 )
+        
+        @self.bot.message_handler(commands=['stats'])
+        def admin_stats(message):
+            """Статистика (только для администраторов)."""
+            if not self._guard_message(message):
+                return
+            if message.from_user.id not in ADMIN_USER_IDS:
+                return
+            try:
+                conn = sqlite3.connect(self.payment_system.db_path)
+                cur = conn.cursor()
+
+                def one(q):
+                    return cur.execute(q).fetchone()[0]
+
+                payments_total = one("SELECT COUNT(*) FROM payments")
+                payments_paid = one("SELECT COUNT(*) FROM payments WHERE status='paid'")
+                payments_pending = one("SELECT COUNT(*) FROM payments WHERE status='pending'")
+                orders_total = one("SELECT COUNT(*) FROM orders")
+                users_total = one("SELECT COUNT(DISTINCT user_id) FROM payments")
+                invoices_active = one("SELECT COUNT(*) FROM invoices WHERE status='active'")
+                conn.close()
+            except Exception as e:
+                logger.error("Ошибка /stats: %s", e)
+                self.bot.send_message(message.chat.id, f"❌ Ошибка получения статистики: {e}")
+                return
+
+            text = (
+                "📊 *Статистика:*\n\n"
+                f"👤 Пользователей: {users_total}\n"
+                f"💰 Платежей всего: {payments_total}\n"
+                f"✅ Оплачено: {payments_paid}\n"
+                f"⏳ Ожидают оплату: {payments_pending}\n"
+                f"📦 Заказов: {orders_total}\n"
+                f"🧾 Активных счетов: {invoices_active}\n"
+            )
+            self.bot.send_message(message.chat.id, text, parse_mode='Markdown')
         
         @self.bot.pre_checkout_query_handler(func=lambda query: True)
         def handle_pre_checkout(query):

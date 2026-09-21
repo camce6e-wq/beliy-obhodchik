@@ -71,7 +71,7 @@ CHAT = 222
 
 call = SimpleNamespace(
     from_user=SimpleNamespace(id=USER),
-    message=SimpleNamespace(chat=SimpleNamespace(id=CHAT)),
+    message=SimpleNamespace(chat=SimpleNamespace(id=CHAT, type='private')),
 )
 
 # Берём реальный обработчик колбэков, зарегистрированный в register_handlers
@@ -88,6 +88,7 @@ bot.user_states[USER] = "awaiting_payment"
 
 # 1) Нажатие "Оплатить" -> счёт создан
 call.data = "make_payment"
+bot.last_cmd.clear()
 handler(call)
 
 assert pid in bot.pending_payments, "счёт не добавлен в pending"
@@ -150,6 +151,7 @@ bot.user_data[USER] = {
     "sni_hostname": "api.notion.com",
 }
 call.data = "make_payment"
+bot.last_cmd.clear()
 handler(call)
 assert pid2 in bot.pending_payments
 
