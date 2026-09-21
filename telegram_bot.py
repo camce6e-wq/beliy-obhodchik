@@ -60,11 +60,6 @@ CRYPTOPAY_TOKEN = os.environ.get('CRYPTOPAY_TOKEN', "")
 # url="" — площадка показывается без ссылки.
 VPS_RECOMMENDATIONS = [
     ("AdminVPS", "Россия/Европа", "от 150 ₽/месяц", "https://my.adminvps.ru/aff.php?aff=32386"),
-    ("Hetzner Cloud", "Германия", "от 3 €/месяц", "https://hetzner.cloud/?ref=XXXX"),
-    ("TimeWeb", "Финляндия", "от 120 ₽/месяц", ""),
-    ("AWS Lightsail", "США", "от 3.5 $/месяц", ""),
-    ("DigitalOcean", "США", "от 4 $/месяц", "https://www.digitalocean.com/?refcode=XXXX"),
-    ("Vultr", "Япония/Франкфурт", "от 2.5 $/месяц", "https://www.vultr.com/?ref=XXXX"),
 ]
 
 # Промокод на скидку для рекомендуемых площадок (пусто = не показывать).
