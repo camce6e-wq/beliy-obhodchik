@@ -155,6 +155,20 @@ class PaymentSystem:
                 )
             """)
             
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS vps_setups (
+                    user_id INTEGER PRIMARY KEY,
+                    server_ip TEXT NOT NULL,
+                    uuid TEXT NOT NULL,
+                    public_key TEXT NOT NULL,
+                    short_id TEXT NOT NULL,
+                    sni_hostname TEXT NOT NULL,
+                    sni_ip TEXT,
+                    install_method TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
             conn.commit()
     
     def create_payment(self, user_id: int, username: str, amount: int = 500) -> str:

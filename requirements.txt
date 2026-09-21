@@ -6,6 +6,9 @@ pyTelegramBotAPI>=4.16.0
 # HTTP-запросы (Crypto Pay API, проверка доноров)
 requests>=2.31.0
 
+# Автоустановка на VPS пользователя по SSH
+paramiko>=3.4.0
+
 # Генерация ключей/конфигов (опционально)
 cryptography>=42.0.0
 
