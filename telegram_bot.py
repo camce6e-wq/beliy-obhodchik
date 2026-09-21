@@ -41,6 +41,12 @@ from sni_manager import SNIDatabase, SNIScanner
 from keenetic_config_generator import KeeneticConfigGenerator, quick_generate
 from vps_installer import VPSInstaller
 
+# SSH-установка VPS (paramiko)
+try:
+    import paramiko
+except ImportError:
+    paramiko = None
+
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
@@ -628,6 +634,42 @@ class AutoConfigBot:
                 reply_markup=markup
             )
         
+        @self.bot.message_handler(func=lambda m: self.get_user_state(m.from_user.id) == "awaiting_self_output")
+        def handle_self_output(message):
+            """Путь A: пользователь сам запустил setup_vps.sh и прислал блок параметров."""
+            if not self._guard_message(message):
+                return
+            user_id = message.from_user.id
+            parsed = self._parse_vps_output(message.text or "")
+            if not parsed:
+                self.bot.send_message(
+                    message.chat.id,
+                    "❌ Не вижу блок `===BELIY-OBHODCHIK-VLESS===` ... `===END===` в сообщении.\n"
+                    "Запустите setup_vps.sh на VPS и пришлите сюда весь вывод целиком."
+                )
+                return
+            self._save_setup_and_deliver(user_id, message.chat.id, parsed,
+                                         self.user_data.get(user_id, {}).get('sni_hostname'),
+                                         self.user_data.get(user_id, {}).get('sni_ip'),
+                                         install_method="self")
+        
+        @self.bot.message_handler(func=lambda m: self.get_user_state(m.from_user.id) == "awaiting_ssh_password")
+        def handle_ssh_password(message):
+            """Путь B: авто-установка по SSH — приняли пароль root, запускаем установку."""
+            if not self._guard_message(message):
+                return
+            user_id = message.from_user.id
+            password = message.text.strip()
+            if not password or '\n' in password or password.startswith('/'):
+                self.bot.send_message(message.chat.id, "❌ Пришлите пароль root одной строкой.")
+                return
+            self.bot.send_message(
+                message.chat.id,
+                "⏳ Подключаюсь к вашему VPS и ставлю Xray... Это занимает 1-3 минуты."
+            )
+            ud = self.user_data.get(user_id, {})
+            self._run_ssh_install(user_id, message.chat.id, password, ud)
+        
         @self.bot.callback_query_handler(func=lambda call: True)
         def handle_callback(call):
             if not self._guard_callback(call):
@@ -730,7 +772,52 @@ class AutoConfigBot:
                     "XTR",
                     prices,
                 )
-
+                
+            elif call.data == "install_self":
+                ud = self.user_data.get(user_id, {})
+                sni_hostname = ud.get('sni_hostname')
+                sni_ip = ud.get('sni_ip')
+                if not sni_hostname:
+                    self.bot.send_message(call.message.chat.id, "❌ Данные заказа потеряны. Наберите /buy заново.")
+                    return
+                self.user_states[user_id] = "awaiting_self_output"
+                script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "setup_vps.sh")
+                if not os.path.exists(script_path):
+                    self.bot.send_message(call.message.chat.id, "❌ Скрипт setup_vps.sh не найден на сервере бота.")
+                    return
+                with open(script_path, 'rb') as f:
+                    self.bot.send_document(
+                        call.message.chat.id, f,
+                        caption=(
+                            f"🔧 *Способ 1: сами запустите скрипт*\n\n"
+                            f"1. Скачайте и загрузите `setup_vps.sh` на свой VPS\n"
+                            f"2. Выполните:\n"
+                            f"`chmod +x setup_vps.sh`\n"
+                            f"`sudo SNI_HOSTNAME={sni_hostname} bash setup_vps.sh`\n"
+                            + (f"Или с указанием IP донора:\n`sudo SNI_HOSTNAME={sni_hostname} SNI_IP={sni_ip} bash setup_vps.sh`\n\n" if sni_ip else "")
+                            + "3. Пришлите сюда ВЕСЬ вывод блоком `===BELIY-OBHODCHIK-VLESS===` ... `===END===`\n"
+                        )
+                    )
+                self.bot.send_message(
+                    call.message.chat.id,
+                    "Жду вывод скрипта. Просто пришлите его целиком одним сообщением."
+                )
+            
+            elif call.data == "install_ssh":
+                ud = self.user_data.get(user_id, {})
+                if not ud.get('server_ip'):
+                    self.bot.send_message(call.message.chat.id, "❌ IP сервера не указан. Наберите /buy заново.")
+                    return
+                if paramiko is None:
+                    self.bot.send_message(call.message.chat.id, "❌ SSH-модуль не установлен. Пока выберите «сам запущу скрипт».")
+                    return
+                self.user_states[user_id] = "awaiting_ssh_password"
+                self.bot.send_message(
+                    call.message.chat.id,
+                    "🔑 Пришлите пароль `root` от вашего VPS одной строкой. "
+                    "Бот сам подключится по SSH, поставит Xray и заберёт ключи."
+                )
+            
             elif call.data == "cancel_purchase":
                 self.bot.send_message(call.message.chat.id, "❌ Заказ отменён.")
                 self.user_states[user_id] = None
@@ -959,18 +1046,26 @@ class AutoConfigBot:
             
             try:
                 self.payment_system.confirm_payment(payload)
-                ok = self.generate_and_send_config(user_id, message.chat.id)
-                if ok:
+                if self._offer_install_choice(user_id, message.chat.id):
                     self.bot.send_message(
                         message.chat.id,
-                        f"✅ *Оплата {stars} ⭐ подтверждена!* Конфиг сформирован и отправлен выше.",
+                        f"✅ *Оплата {stars} ⭐ подтверждена!* "
+                        f"Выберите, как поставить Xray на ваш VPS:",
                         parse_mode='Markdown'
                     )
                 else:
-                    self.bot.send_message(
-                        message.chat.id,
-                        "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support"
-                    )
+                    ok = self.generate_and_send_config(user_id, message.chat.id)
+                    if ok:
+                        self.bot.send_message(
+                            message.chat.id,
+                            f"✅ *Оплата {stars} ⭐ подтверждена!* Конфиг сформирован и отправлен выше.",
+                            parse_mode='Markdown'
+                        )
+                    else:
+                        self.bot.send_message(
+                            message.chat.id,
+                            "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support"
+                        )
             except Exception as e:
                 logger.error("Ошибка доставки после оплаты звёздами: %s", e)
                 self.bot.send_message(
@@ -1116,17 +1211,158 @@ class AutoConfigBot:
                 continue
             try:
                 self.payment_system.confirm_payment(rec['payment_id'])
-                ok = self.generate_and_send_config(
-                    rec['user_id'], rec['chat_id'], data=rec
-                )
-                if ok:
-                    self.payment_system.mark_invoice_paid(inv.get('invoice_id', ''))
-                    logger.info("Оплата %s подтверждена, конфиг отправлен", pid)
+                self.user_data[rec['user_id']] = rec
+                if self._offer_install_choice(rec['user_id'], rec['chat_id']):
+                    self.bot.send_message(
+                        rec['chat_id'],
+                        f"✅ *Оплата подтверждена!* Выберите, как поставить Xray на ваш VPS:",
+                        parse_mode='Markdown'
+                    )
                 else:
-                    self.pending_payments[pid] = rec
+                    ok = self.generate_and_send_config(
+                        rec['user_id'], rec['chat_id'], data=rec
+                    )
+                    if not ok:
+                        self.pending_payments[pid] = rec
+                self.payment_system.mark_invoice_paid(inv.get('invoice_id', ''))
+                logger.info("Оплата %s подтверждена, конфиг отправлен", pid)
             except Exception as e:
                 logger.error("Ошибка доставки после оплаты %s: %s", pid, e)
                 self.pending_payments[pid] = rec
+
+    def _offer_install_choice(self, user_id: int, chat_id: int) -> bool:
+        """Если реальных ключей ещё нет — предлагаем выбрать способ установки.
+        Возвращает True, если показаны кнопки выбора."""
+        real_setup = None
+        try:
+            real_setup = self.payment_system.get_vps_setup(user_id)
+        except Exception:
+            real_setup = None
+        if real_setup:
+            return False
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔑 Авто-установка по SSH", callback_data="install_ssh"))
+        markup.add(types.InlineKeyboardButton("🔧 Сам запущу скрипт", callback_data="install_self"))
+        self.bot.send_message(
+            chat_id,
+            "🖥️ *Установка Xray на ваш VPS*\n\n"
+            "Конфиг будет рабочим, только если на VPS стоят те же ключи, что в конфиге.\n"
+            "Выберите способ:",
+            parse_mode='Markdown',
+            reply_markup=markup,
+        )
+        return True
+
+    def _parse_vps_output(self, text: str) -> Optional[dict]:
+        """Парсинг блока вывода setup_vps.sh:
+        ===BELIY-OBHODCHIK-VLESS===
+        SERVER_IP=...
+        UUID=...
+        PUBLIC_KEY=...
+        SHORT_ID=...
+        SNI_HOSTNAME=...
+        SNI_IP=...
+        ===BELIY-OBHODCHIK-VLESS-END==="""
+        if not text:
+            return None
+        start = text.find("===BELIY-OBHODCHIK-VLESS===")
+        end = text.find("===BELIY-OBHODCHIK-VLESS-END===")
+        if start < 0 or end < start:
+            return None
+        block = text[start:end]
+        data = {}
+        for line in block.splitlines():
+            if '=' in line:
+                key, _, value = line.partition('=')
+                data[key.strip()] = value.strip()
+        need = {'SERVER_IP', 'UUID', 'PUBLIC_KEY', 'SHORT_ID', 'SNI_HOSTNAME'}
+        if not need.issubset(set(data)):
+            return None
+        return data
+
+    def _save_setup_and_deliver(self, user_id: int, chat_id: int, parsed: dict,
+                                sni_hostname: Optional[str] = None,
+                                sni_ip: Optional[str] = None,
+                                install_method: str = "self") -> bool:
+        """Сохранение реальных ключей и доставка настоящего конфига."""
+        if not parsed:
+            return False
+        try:
+            self.payment_system.save_vps_setup(
+                user_id=user_id,
+                server_ip=parsed.get('SERVER_IP'),
+                uuid=parsed.get('UUID'),
+                public_key=parsed.get('PUBLIC_KEY'),
+                short_id=parsed.get('SHORT_ID'),
+                sni_hostname=parsed.get('SNI_HOSTNAME') or sni_hostname,
+                sni_ip=parsed.get('SNI_IP') or sni_ip,
+                install_method=install_method,
+            )
+        except Exception as e:
+            logger.error("Не удалось сохранить установку VPS пользователя %s: %s", user_id, e)
+            self.bot.send_message(chat_id, "❌ Не удалось сохранить ключи установки.")
+            return False
+        self.user_states[user_id] = None
+        ok = self.generate_and_send_config(user_id, chat_id)
+        if ok:
+            self.bot.send_message(
+                chat_id,
+                "✅ *Готово!* Конфиг собран на настоящих ключах вашего VPS и отправлен выше.",
+                parse_mode='Markdown'
+            )
+        return ok
+
+    def _run_ssh_install(self, user_id: int, chat_id: int, password: str, ud: dict):
+        """Путь B: подключение по SSH, установка Xray, парсинг ключей."""
+        server_ip = ud.get('server_ip')
+        sni_hostname = ud.get('sni_hostname')
+        sni_ip = ud.get('sni_ip')
+        if not server_ip or not sni_hostname:
+            self.bot.send_message(chat_id, "❌ IP сервера или SNI-донор потеряны. Наберите /buy заново.")
+            self.user_states[user_id] = None
+            return
+        script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "setup_vps.sh")
+        if not os.path.exists(script_path):
+            self.bot.send_message(chat_id, "❌ Скрипт setup_vps.sh не найден на сервере бота.")
+            self.user_states[user_id] = None
+            return
+        try:
+            cli = paramiko.SSHClient()
+            cli.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            cli.connect(
+                hostname=server_ip, port=22, username='root',
+                password=password, timeout=25,
+                allow_agent=False, look_for_keys=False,
+            )
+            with cli.open_sftp() as sftp:
+                sftp.put(script_path, "/tmp/setup_vps.sh")
+            env = f"export SNI_HOSTNAME={sni_hostname} SNI_IP={sni_ip or ''}\n"
+            cmd = f"{env} bash /tmp/setup_vps.sh 2>&1"
+            stdin, stdout, stderr = cli.exec_command(cmd, timeout=240)
+            out = stdout.read().decode('utf-8', errors='replace')
+            cli.close()
+            parsed = self._parse_vps_output(out)
+            if not parsed:
+                logger.error("SSH-установка не вернула блок параметров. Вывод: %s", out[-600:])
+                self.bot.send_message(
+                    chat_id,
+                    "❌ Установка прошла, но бот не нашёл блок ключей. Скопируйте вывод вручную — "
+                    "выберите «Сам запущу скрипт», либо напишите в поддержку."
+                )
+                self.user_states[user_id] = None
+                return
+            self._save_setup_and_deliver(user_id, chat_id, parsed,
+                                         sni_hostname=sni_hostname,
+                                         sni_ip=sni_ip,
+                                         install_method="ssh")
+        except Exception as e:
+            logger.error("SSH-ошибка установки для %s (%s): %s", user_id, server_ip, e)
+            self.bot.send_message(
+                chat_id,
+                f"❌ Не удалось подключиться по SSH: {str(e)[:200]}\n"
+                f"Проверьте, что IP верный и включён пароль root для SSH (PermitRootLogin)."
+            )
+            self.user_states[user_id] = None
 
     @staticmethod
     def _vps_recommendations_text() -> str:
