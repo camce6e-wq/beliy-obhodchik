@@ -1,35 +1,43 @@
 #!/usr/bin/env python3
 """
-Простой запуск Telegram-бота для тестирования
+Запуск Telegram-бота для автоматической настройки Keenetic
+Единый экземпляр с автоперезапуском при сбое.
 """
 
 import os
 import sys
+import time
 
-# Устанавливаем токен
-TOKEN = "8852560443:REDACTED_REVOKED_TOKEN"
-os.environ['TELEGRAM_BOT_TOKEN'] = TOKEN
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
-print(f"🔧 Использую токен: {TOKEN[:10]}...")
-print("Запускаю бота...")
+TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', "")
 
-# Пробуем импортировать и запустить бота
-try:
-    import telebot
-    from telebot import types
-    
-    # Создаём бота
-    bot = telebot.TeleBot(TOKEN, parse_mode=None)
-    
-    # Проверяем подключение
-    print("🔄 Проверяю подключение к Telegram API...")
-    bot_info = bot.get_me()
-    print(f"✅ Бот найден: @{bot_info.username} ({bot_info.first_name})")
-    
-    # Простые обработчики
-    @bot.message_handler(commands=['start', 'help'])
-    def send_welcome(message):
-        welcome_text = """
+print(f"🔧 Использую токен: {TOKEN[:10]}...", flush=True)
+
+import telebot
+from telebot import types
+
+# Оборот DPI: запрещаем keep-alive, чтобы каждый запрос к api.telegram.org
+# шёл по свежему короткому TCP-соединению (долгие соединения сеть сбрасывает).
+import telebot.apihelper as _ah
+_orig_session = _ah._get_req_session
+
+
+def _fresh_session():
+    s = _orig_session()
+    s.headers['Connection'] = 'close'
+    return s
+
+
+_ah._get_req_session = _fresh_session
+
+bot = telebot.TeleBot(TOKEN, parse_mode=None)
+
+
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    welcome_text = """
 👋 *Добро пожаловать в БелыйОбходчик!*
 
 Я помогу автоматически настроить интернет без ограничений на вашем роутере Keenetic.
@@ -37,7 +45,7 @@ try:
 ✨ *Что я умею:*
 • Автоматически настраивать VLESS Reality на вашем VPS
 • Генерировать готовые конфиги для Keenetic
-• Подбирать работающие SNI-доноры
+• Подбирать работающие SNI-доноров
 • Обновлять настройки при блокировках
 
 📋 *Основные команды:*
@@ -53,96 +61,91 @@ try:
 4. Интернет работает без ограничений
 
 💰 *Стоимость:* 500 ₽ один раз за автоматическую настройку
-        """
-        bot.reply_to(message, welcome_text, parse_mode='Markdown')
-    
-    @bot.message_handler(commands=['test'])
-    def test_generation(message):
-        """Тестовая генерация конфига"""
-        from keenetic_config_generator import quick_generate
-        import tempfile
-        
-        bot.reply_to(message, "🔄 Генерирую тестовый конфиг...")
-        
-        try:
-            # Быстрая генерация для теста
-            temp_file, params = quick_generate(
-                server_ip="93.184.216.34",  # Тестовый IP (example.com)
-                sni_hostname="api.notion.com"
-            )
-            
-            with open(temp_file, 'rb') as f:
-                bot.send_document(
-                    message.chat.id,
-                    f,
-                    caption=f"""
+    """
+    bot.reply_to(message, welcome_text, parse_mode='Markdown')
+
+
+@bot.message_handler(commands=['test'])
+def test_generation(message):
+    from keenetic_config_generator import quick_generate
+    bot.reply_to(message, "🔄 Генерирую тестовый конфиг...")
+    try:
+        temp_file, params = quick_generate(
+            server_ip="93.184.216.34",
+            sni_hostname="api.notion.com"
+        )
+        with open(temp_file, 'rb') as f:
+            bot.send_document(
+                message.chat.id,
+                f,
+                caption=f"""
 ✅ *Тестовый конфиг сгенерирован:*
 • Сервер: {params['server_ip']}
 • SNI: {params['sni_hostname']}
 • UUID: `{params['uuid']}`
 • Short ID: `{params['short_id']}`
+                """,
+                parse_mode='Markdown'
+            )
+        os.remove(temp_file)
+    except Exception as e:
+        bot.reply_to(message, f"❌ Ошибка: {str(e)}")
 
-📁 *Архив содержит:*
-1. Конфигурация для Xray/Sing-box
-2. Правила HydraRoute
-3. Инструкция по настройке
-4. Скрипт проверки обновлений
 
-💡 *Тестовая версия* — для реального использования укажите IP вашего VPS.
-                    """,
-                    parse_mode='Markdown'
-                )
-            
-            # Удаляем временный файл
-            import os
-            os.remove(temp_file)
-            
-        except Exception as e:
-            bot.reply_to(message, f"❌ Ошибка при генерации: {str(e)}")
-    
-    @bot.message_handler(commands=['status'])
-    def system_status(message):
-        """Статус системы"""
-        try:
-            from sni_manager import SNIDatabase
-            db = SNIDatabase()
-            stats = db.get_stats()
-            
-            status_text = f"""
+@bot.message_handler(commands=['status'])
+def system_status(message):
+    try:
+        from sni_manager import SNIDatabase
+        db = SNIDatabase()
+        stats = db.get_stats()
+        status_text = f"""
 📊 *Статус системы:*
-
 • Всего SNI-доноров: {stats['total']}
 • Активных: {stats['active']}
 • Средняя успешность: {stats['avg_success_rate']:.2%}
-
 ✅ *Система работает нормально*
 🤖 *Бот активен с:* 20.09.2026
-👥 *Пользователей:* 1 (тест)
-            """
-            
-            bot.reply_to(message, status_text, parse_mode='Markdown')
-        except:
-            bot.reply_to(message, "✅ Система работает. База SNI-доноров в разработке.")
-    
-    @bot.message_handler(func=lambda message: True)
-    def echo_all(message):
-        """Ответ на любое сообщение"""
-        if message.text:
-            bot.reply_to(message, f"🤖 Я бот для автоматической настройки Keenetic. Используйте команды:\n/start - Инструкция\n/test - Тест\n/status - Статус")
-    
-    print("🚀 Бот запущен! Напишите /start в Telegram")
-    print("⏸️  Нажмите Ctrl+C для остановки")
-    
-    # Запускаем бота
-    bot.polling(none_stop=True)
-    
-except ImportError as e:
-    print(f"❌ Ошибка импорта: {e}")
-    print("Установите библиотеку: pip install pyTelegramBotAPI")
-except Exception as e:
-    print(f"❌ Ошибка: {e}")
-    print("\n🛠️  Устранение неполадок:")
-    print("1. Проверьте токен бота (должен быть без пробелов)")
-    print("2. Проверьте подключение к интернету")
-    print("3. Проверьте что бот создан через @BotFather")
-    print(f"4. Текущий токен: {TOKEN}")
+        """
+        bot.reply_to(message, status_text, parse_mode='Markdown')
+    except Exception:
+        bot.reply_to(message, "✅ Система работает. База SNI-доноров в разработке.")
+
+
+@bot.message_handler(func=lambda message: True)
+def echo_all(message):
+    if message.text:
+        bot.reply_to(message, f"🤖 Я бот для автоматической настройки Keenetic.\n/start - Инструкция\n/test - Тест\n/status - Статус")
+
+
+MAX_RETRIES = 5
+RETRY_DELAY = 5
+
+
+def run():
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            print("🔄 Проверяю подключение к Telegram API...", flush=True)
+            bot_info = bot.get_me()
+            print(f"✅ Бот найден: @{bot_info.username} ({bot_info.first_name})", flush=True)
+            print("🚀 Бот запущен! Напишите /start в Telegram", flush=True)
+            print("⏸️  Нажмите Ctrl+C для остановки", flush=True)
+            bot.infinity_polling(none_stop=True, interval=2, timeout=20, long_polling_timeout=0)
+            # infinity_polling не возвращает управление, пока бот не остановлен
+            break
+        except KeyboardInterrupt:
+            print("🛑 Остановлен по Ctrl+C", flush=True)
+            break
+        except Exception as e:
+            print(f"❌ Попытка {attempt}/{MAX_RETRIES} — Ошибка: {e}", flush=True)
+            if attempt >= MAX_RETRIES:
+                print("💀 Все попытки исчерпаны. Бот не запущен.", flush=True)
+                print("🛠️ Попробуйте запустить вручную: python bot_runner.py", flush=True)
+                sys.exit(1)
+            print(f"🔄 Перезапуск через {RETRY_DELAY} сек...", flush=True)
+            time.sleep(RETRY_DELAY)
+
+
+if __name__ == "__main__":
+    run()

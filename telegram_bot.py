@@ -5,15 +5,21 @@ Telegram-бот для автоматической продажи конфиг�
 """
 
 import os
+import sys
 import json
+import time
 import logging
 import hashlib
 import uuid
+import threading
 from datetime import datetime
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Any
 import sqlite3
 import base64
 import secrets
+
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 # Для работы с Telegram API
 try:
@@ -22,6 +28,12 @@ try:
     from telebot.util import quick_markup
 except ImportError:
     print("Установите библиотеку: pip install pyTelegramBotAPI")
+    exit(1)
+
+try:
+    import requests
+except ImportError:
+    print("Установите библиотеку: pip install requests")
     exit(1)
 
 # Импортируем наши модули
@@ -35,6 +47,43 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Токены берём из окружения (.env). Плейсхолдер ниже — НЕ настоящий секрет,
+# он нужен только для офлайн-тестов; продакшен работает через run_prod_bot.bat.
+TELEGRAM_BOT_TOKEN = os.environ.get(
+    'TELEGRAM_BOT_TOKEN',
+    "0000000000:AA0000000000000000000000000000000000"
+)
+CRYPTOPAY_TOKEN = os.environ.get('CRYPTOPAY_TOKEN', "")
+
+# Рекомендуемые VPS-площадки — для монетизации через партнёрские ссылки.
+# Замените ref=XXXX / refcode=XXXX на ваши коды партнёрских программ.
+# url="" — площадка показывается без ссылки.
+VPS_RECOMMENDATIONS = [
+    ("Hetzner Cloud", "Германия", "от 3 €/месяц", "https://hetzner.cloud/?ref=XXXX"),
+    ("TimeWeb", "Финляндия", "от 120 ₽/месяц", ""),
+    ("AWS Lightsail", "США", "от 3.5 $/месяц", ""),
+    ("DigitalOcean", "США", "от 4 $/месяц", "https://www.digitalocean.com/?refcode=XXXX"),
+    ("Vultr", "Япония/Франкфурт", "от 2.5 $/месяц", "https://www.vultr.com/?ref=XXXX"),
+]
+
+# Оплата звёздами Telegram: цена в звёздах за настройку.
+# ~250⭐: покупателю ~450-650₽ (в зависимости от канала), боту на вывод ~$3.25.
+STARS_PRICE = 250
+
+# Оборот DPI: запрещаем keep-alive, чтобы каждый запрос к api.telegram.org
+# шёл по свежему короткому TCP-соединению (долгие соединения сеть сбрасывает).
+import telebot.apihelper as _ah
+_orig_session = _ah._get_req_session
+
+
+def _fresh_session():
+    s = _orig_session()
+    s.headers['Connection'] = 'close'
+    return s
+
+
+_ah._get_req_session = _fresh_session
 
 class PaymentSystem:
     """Класс для обработки платежей (упрощённая версия)"""
@@ -73,6 +122,20 @@ class PaymentSystem:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     delivered_at TIMESTAMP,
                     FOREIGN KEY (payment_id) REFERENCES payments(payment_id)
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS invoices (
+                    invoice_id TEXT PRIMARY KEY,
+                    payment_id TEXT NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    chat_id INTEGER NOT NULL,
+                    server_ip TEXT,
+                    sni_hostname TEXT,
+                    status TEXT DEFAULT 'active',
+                    pay_url TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
@@ -155,22 +218,108 @@ class PaymentSystem:
         
         logger.info(f"Заказ {order_id} отмечен как доставленный")
 
+    def create_invoice_record(self, invoice_id: str, payment_id: str, user_id: int,
+                              chat_id: int, server_ip: Optional[str],
+                              sni_hostname: Optional[str], pay_url: str):
+        """Сохраняем созданный счёт (для проверки оплаты после перезапуска)"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO invoices
+                (invoice_id, payment_id, user_id, chat_id, server_ip, sni_hostname, status, pay_url)
+                VALUES (?, ?, ?, ?, ?, ?, 'active', ?)
+            """, (invoice_id, payment_id, user_id, chat_id, server_ip, sni_hostname, pay_url))
+            conn.commit()
+
+    def get_active_invoices(self) -> dict:
+        """Все ожидающие оплаты счета: payment_id -> данные"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("""
+                SELECT * FROM invoices WHERE status = 'active'
+            """).fetchall()
+            return {r['payment_id']: dict(r) for r in rows}
+
+    def mark_invoice_paid(self, invoice_id: str):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("UPDATE invoices SET status = 'paid' WHERE invoice_id = ?", (invoice_id,))
+            conn.commit()
+
+
+class CryptoPayClient:
+    """Клиент Crypto Pay (Crypto Bot) для создания и проверки счетов."""
+
+    BASE = "https://pay.crypt.bot/api"
+
+    def __init__(self, token: str):
+        self.token = token
+        self.session = requests.Session()
+        self.session.headers.update({
+            'Crypto-Pay-API-Token': token,
+            'Content-Type': 'application/json',
+        })
+
+    def _post(self, method: str, payload: Optional[dict] = None) -> Any:
+        r = self.session.post(f"{self.BASE}/{method}", json=payload or {}, timeout=15)
+        try:
+            j = r.json()
+        except ValueError:
+            raise RuntimeError(f"CryptoPay HTTP {r.status_code}: {r.text[:200]}")
+        if not j.get('ok'):
+            raise RuntimeError(str(j.get('error', j))[:300])
+        return j.get('result')
+
+    def create_invoice(self, amount_rub: int = 500, payload: str = "",
+                       description: str = None) -> dict:
+        """Счёт на фиксированную сумму в рублях (конвертируется в USDT)."""
+        return self._post('createInvoice', {
+            'asset': 'USDT',
+            'amount': amount_rub,
+            'currency_type': 'fiat',
+            'fiat': 'RUB',
+            'description': description or "БелыйОбходчик — автоматическая настройка Keenetic",
+            'payload': payload,
+            'allow_anonymous': True,
+            'paid_btn_name': 'viewItem',
+            'paid_btn_url': 'https://camce6e-wq.github.io/beliy-obhodchik/',
+        })
+
+    def get_paid_invoices(self) -> list:
+        """Счета со статусом paid. API возвращает {"items": [...]}."""
+        res = self._post('getInvoices', {'status': 'paid', 'count': 100})
+        if isinstance(res, dict):
+            return res.get('items') or []
+        return res or []
+
 
 class AutoConfigBot:
     """Основной класс Telegram-бота"""
     
-    def __init__(self, token: str):
+    def __init__(self, token: str, crypto_pay_token: str = ""):
         self.bot = telebot.TeleBot(token)
         self.payment_system = PaymentSystem()
         self.sni_db = SNIDatabase()
         self.scanner = SNIScanner(self.sni_db)
-        
+        self.crypto_pay = CryptoPayClient(crypto_pay_token) if crypto_pay_token else None
+
         # Состояния пользователей (user_id -> state)
         self.user_states = {}
-        
+
         # Данные пользователей (user_id -> data)
         self.user_data = {}
-        
+
+        # Ожидающие оплаты: payment_id -> {payment_id, user_id, chat_id, server_ip, sni_hostname}
+        self.pending_payments = {}
+
+        # Восстанавливаем ожидающие счета после перезапуска
+        for pid, row in self.payment_system.get_active_invoices().items():
+            self.pending_payments[pid] = {
+                'payment_id': pid,
+                'user_id': row['user_id'],
+                'chat_id': row['chat_id'],
+                'server_ip': row['server_ip'],
+                'sni_hostname': row['sni_hostname'],
+            }
+
         # Регистрация обработчиков
         self.register_handlers()
     
@@ -242,8 +391,8 @@ class AutoConfigBot:
             payment_id = self.payment_system.create_payment(user_id, username)
             self.user_data[user_id]['payment_id'] = payment_id
             
-            instruction = """
-💰 *Стоимость: 500 ₽ один раз*
+            instruction = f"""
+💰 *Стоимость: 500 ₽ один раз* (или {STARS_PRICE} ⭐)
 
 Что входит:
 • Автоматическая настройка вашего VPS
@@ -256,10 +405,8 @@ class AutoConfigBot:
 1. Введите IP адрес вашего VPS сервера
    (например: 123.45.67.89)
 
-Если сервера ещё нет, рекомендую:
-• Hetzner (Германия) - от 3 €/месяц
-• TimeWeb (Финляндия) - от 120 ₽/месяц
-• AWS Lightsail (США) - от 3.5 $/месяц
+Если сервера ещё нет, рекомендую глянуть:
+{self._vps_recommendations_text()}
 
 Введите IP вашего сервера:
             """
@@ -310,7 +457,8 @@ class AutoConfigBot:
             """
             
             markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("💳 Оплатить 500 ₽", callback_data="make_payment"))
+            markup.add(types.InlineKeyboardButton("💳 Оплатить 500 ₽ (Crypto Bot)", callback_data="make_payment"))
+            markup.add(types.InlineKeyboardButton(f"⭐ Оплатить {STARS_PRICE} звёздами", callback_data="pay_stars"))
             markup.add(types.InlineKeyboardButton("❌ Отменить", callback_data="cancel_purchase"))
             
             self.bot.send_message(
@@ -325,17 +473,82 @@ class AutoConfigBot:
             user_id = call.from_user.id
             
             if call.data == "make_payment":
-                # Создаём ссылку на оплату (в реальности через ЮKassa/Stripe)
+                # Создаём счёт в Crypto Bot
                 payment_id = self.user_data.get(user_id, {}).get('payment_id')
+                if not payment_id:
+                    self.bot.send_message(call.message.chat.id, "❌ Данные заказа потеряны. Наберите /buy заново.")
+                    return
+
+                if not self.crypto_pay:
+                    self.bot.send_message(
+                        call.message.chat.id,
+                        "⚠️ Оплата временно недоступна. Обратитесь в поддержку: @beliy_obhodchik_support"
+                    )
+                    return
+
+                try:
+                    ud = self.user_data.get(user_id, {})
+                    invoice = self.crypto_pay.create_invoice(
+                        amount_rub=500,
+                        payload=payment_id,
+                    )
+                    invoice_id = invoice['invoice_id']
+                    pay_url = invoice['pay_url']
+
+                    # Запоминаем ожидание оплаты
+                    self.pending_payments[payment_id] = {
+                        'payment_id': payment_id,
+                        'user_id': user_id,
+                        'chat_id': call.message.chat.id,
+                        'server_ip': ud.get('server_ip'),
+                        'sni_hostname': ud.get('sni_hostname'),
+                    }
+                    self.payment_system.create_invoice_record(
+                        invoice_id=invoice_id,
+                        payment_id=payment_id,
+                        user_id=user_id,
+                        chat_id=call.message.chat.id,
+                        server_ip=ud.get('server_ip'),
+                        sni_hostname=ud.get('sni_hostname'),
+                        pay_url=pay_url,
+                    )
+
+                    markup = types.InlineKeyboardMarkup()
+                    markup.add(types.InlineKeyboardButton("💳 Оплатить в CryptoBot", url=pay_url))
+
+                    self.bot.send_message(
+                        call.message.chat.id,
+                        "💳 *Счёт создан на 500 ₽* (оплата в USDT через Crypto Bot)\n\n"
+                        "Нажмите кнопку ниже и оплатите. Конфиг придёт автоматически сразу после оплаты.",
+                        parse_mode='Markdown',
+                        reply_markup=markup,
+                    )
+                except Exception as e:
+                    logger.error("Ошибка создания счёта: %s", e)
+                    self.bot.send_message(
+                        call.message.chat.id,
+                        f"❌ Не удалось создать счёт. Попробуйте позже или напишите в поддержку: @beliy_obhodchik_support\n({str(e)[:120]})"
+                    )
                 
-                payment_url = f"https://your-payment-gateway.com/pay/{payment_id}"
-                
-                # В демо-версии сразу подтверждаем оплату
-                self.payment_system.confirm_payment(payment_id)
-                
-                # Генерируем конфигурацию
-                self.generate_and_send_config(user_id, call.message.chat.id)
-                
+            elif call.data == "pay_stars":
+                payment_id = self.user_data.get(user_id, {}).get('payment_id')
+                if not payment_id:
+                    self.bot.send_message(call.message.chat.id, "❌ Данные заказа потеряны. Наберите /buy заново.")
+                    return
+                prices = [types.LabeledPrice(
+                    label="БелыйОбходчик — автоматическая настройка",
+                    amount=STARS_PRICE,
+                )]
+                self.bot.send_invoice(
+                    call.message.chat.id,
+                    "БелыйОбходчик — автоматическая настройка",
+                    "Настройка VLESS Reality на вашем VPS + конфиг для Keenetic + инструкция.",
+                    payment_id,
+                    "",
+                    "XTR",
+                    prices,
+                )
+
             elif call.data == "cancel_purchase":
                 self.bot.send_message(call.message.chat.id, "❌ Заказ отменён.")
                 self.user_states[user_id] = None
@@ -484,19 +697,67 @@ class AutoConfigBot:
                     message.chat.id,
                     f"❌ Ошибка: {str(e)}"
                 )
+        
+        @self.bot.pre_checkout_query_handler(func=lambda query: True)
+        def handle_pre_checkout(query):
+            """Подтверждаем платёж звёздами."""
+            try:
+                self.bot.answer_pre_checkout_query(query.id, ok=True)
+            except Exception as e:
+                logger.error("Ошибка pre_checkout: %s", e)
+                self.bot.answer_pre_checkout_query(query.id, ok=False, error_message=str(e))
+        
+        @self.bot.message_handler(content_types=["successful_payment"])
+        def handle_successful_payment(message):
+            """После оплаты звёздами сразу доставляем конфиг."""
+            user_id = message.from_user.id
+            payload = message.successful_payment.invoice_payload
+            stars = message.successful_payment.total_amount // 1
+            
+            ud = self.user_data.get(user_id, {})
+            if ud.get('payment_id') != payload:
+                self.bot.send_message(
+                    message.chat.id,
+                    f"✅ Оплата {stars} ⭐ получена! Обратитесь к поддержке: @beliy_obhodchik_support"
+                )
+                return
+            
+            try:
+                self.payment_system.confirm_payment(payload)
+                ok = self.generate_and_send_config(user_id, message.chat.id)
+                if ok:
+                    self.bot.send_message(
+                        message.chat.id,
+                        f"✅ *Оплата {stars} ⭐ подтверждена!* Конфиг сформирован и отправлен выше.",
+                        parse_mode='Markdown'
+                    )
+                else:
+                    self.bot.send_message(
+                        message.chat.id,
+                        "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support"
+                    )
+            except Exception as e:
+                logger.error("Ошибка доставки после оплаты звёздами: %s", e)
+                self.bot.send_message(
+                    message.chat.id,
+                    "❌ Произошла ошибка. Платеж получен, напишите в поддержку: @beliy_obhodchik_support"
+                )
     
     def get_user_state(self, user_id: int) -> Optional[str]:
         """Получение состояния пользователя"""
         return self.user_states.get(user_id)
     
-    def generate_and_send_config(self, user_id: int, chat_id: int):
-        """Генерация и отправка конфигурации пользователю"""
+    def generate_and_send_config(self, user_id: int, chat_id: int,
+                                 data: Optional[dict] = None) -> bool:
+        """Генерация и отправка конфигурации пользователю.
+        data: если передан (например, из фоновой проверки оплаты),
+        используется он вместо self.user_data."""
         
-        user_data = self.user_data.get(user_id, {})
+        user_data = data if data is not None else self.user_data.get(user_id, {})
         
         if not all(k in user_data for k in ['server_ip', 'sni_hostname', 'payment_id']):
             self.bot.send_message(chat_id, "❌ Ошибка: не все данные собраны.")
-            return
+            return False
         
         try:
             # Генерируем конфигурацию
@@ -564,6 +825,7 @@ class AutoConfigBot:
             os.remove(archive_path)
             
             logger.info(f"Конфиг отправлен пользователю {user_id}, заказ {order_id}")
+            return True
             
         except Exception as e:
             logger.error(f"Ошибка при генерации конфига: {e}")
@@ -571,11 +833,56 @@ class AutoConfigBot:
                 chat_id,
                 f"❌ Ошибка при генерации конфигурации: {str(e)}"
             )
+            return False
     
+    def _check_payments_loop(self):
+        """Фоновая проверка оплат через Crypto Pay API."""
+        while True:
+            time.sleep(10)
+            if not self.crypto_pay or not self.pending_payments:
+                continue
+            try:
+                paid = self.crypto_pay.get_paid_invoices()
+            except Exception as e:
+                logger.warning("Ошибка проверки оплат: %s", e)
+                continue
+            self._process_paid_invoices(paid)
+
+    def _process_paid_invoices(self, paid: list):
+        """Доставка конфигов по оплаченным счетам."""
+        for inv in paid:
+            pid = (inv or {}).get('payload') or ''
+            rec = self.pending_payments.pop(pid, None)
+            if not rec:
+                continue
+            try:
+                self.payment_system.confirm_payment(rec['payment_id'])
+                ok = self.generate_and_send_config(
+                    rec['user_id'], rec['chat_id'], data=rec
+                )
+                if ok:
+                    self.payment_system.mark_invoice_paid(inv.get('invoice_id', ''))
+                    logger.info("Оплата %s подтверждена, конфиг отправлен", pid)
+                else:
+                    self.pending_payments[pid] = rec
+            except Exception as e:
+                logger.error("Ошибка доставки после оплаты %s: %s", pid, e)
+                self.pending_payments[pid] = rec
+
+    @staticmethod
+    def _vps_recommendations_text() -> str:
+        """Список рекомендуемых VPS с реферальными ссылками."""
+        lines = []
+        for name, country, price, url in VPS_RECOMMENDATIONS:
+            label = f"{name} ({country}) - {price}"
+            lines.append(f"• [{label}]({url})" if url else f"• {label}")
+        return "\n".join(lines)
+
     def start(self):
         """Запуск бота"""
         logger.info("Запускаю Telegram-бота...")
-        self.bot.polling(none_stop=True)
+        threading.Thread(target=self._check_payments_loop, daemon=True).start()
+        self.bot.infinity_polling(none_stop=True, interval=2, timeout=20, long_polling_timeout=0)
 
 
 def create_demo_bot():
@@ -603,38 +910,14 @@ def main():
     print("TELEGRAM БОТ ДЛЯ АВТОМАТИЧЕСКОЙ ПРОДАЖИ КОНФИГОВ")
     print("="*60)
     
-    # Проверяем наличие токена
-    token = os.environ.get('TELEGRAM_BOT_TOKEN')
-    
-    if not token:
-        print("⚠️  Токен бота не найден в переменных окружения.")
-        print("    Создайте бота через @BotFather и добавьте токен:")
-        print("    export TELEGRAM_BOT_TOKEN='ваш_токен'")
-        print()
-        print("    Для демонстрации создам фейкового бота...")
-        
-        demo = create_demo_bot()
-        print("\n📱 *Демо-бот создан*")
-        print("Доступные команды:")
-        
-        for cmd, desc in demo.commands.items():
-            print(f"  {cmd} - {desc}")
-        
-        print("\n🤖 *Реальный бот будет работать так:*")
-        print("1. Пользователь: /start")
-        print("2. Бот: Отправляет приветствие и меню")
-        print("3. Пользователь: /buy")
-        print("4. Бот: Запрашивает IP сервера")
-        print("5. Бот: Находит лучший SNI-донор")
-        print("6. Бот: Предлагает оплатить")
-        print("7. После оплаты: Генерирует и отправляет конфиг")
-        print("8. Бот: Отправляет архив с конфигурацией")
-        
-        return
+    if CRYPTOPAY_TOKEN:
+        print(f"✅ Crypto Pay: подключён")
+    else:
+        print("⚠️  Crypto Pay: токен не задан (CRYPTOPAY_TOKEN) — оплата будет отключена")
     
     # Создаём и запускаем бота
     try:
-        bot = AutoConfigBot(token)
+        bot = AutoConfigBot(TELEGRAM_BOT_TOKEN, crypto_pay_token=CRYPTOPAY_TOKEN)
         bot.start()
     except Exception as e:
         print(f"❌ Ошибка при запуске бота: {e}")

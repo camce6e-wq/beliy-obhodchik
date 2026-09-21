@@ -1,11 +1,13 @@
 @echo off
 chcp 65001 >nul
 echo ========================================
-echo  Telegram Бот "БелыйОбходчик"
+echo  Telegram Бот "БелыйОбходчик" (легаси-запуск bot_runner)
+echo  Для нового продакшена используйте run_prod_bot.bat
 echo ========================================
 echo.
 
-set TELEGRAM_BOT_TOKEN=8852560443:REDACTED_REVOKED_TOKEN
+rem Токен подставляется из .env — здесь секретов не храним.
+for /f "usebackq tokens=1,* delims==" %%a in (".env") do set "%%a=%%b"
 
 echo [1/2] Проверка токена...
 echo Токен установлен: ✅

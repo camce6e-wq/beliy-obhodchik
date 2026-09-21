@@ -1,0 +1,20 @@
+# Секреты
+.env
+*.session
+bot_session.session
+client_session.session
+
+# Базы и логи
+*.db
+*.db-journal
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Временные архивы
+*.zip
+tmp/
