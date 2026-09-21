@@ -1,73 +1,60 @@
-import sys, os, types, tempfile
+#!/usr/bin/env python3
+"""Офлайн-тест базовых команд основного бота (telegram_bot.py)."""
+import os
+import sys
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-os.chdir(r"C:\Users\BacuJlu4\Documents\GitHub\beliy-obhodchik")
+import telegram_bot as tb
 
-import bot_runner  # импортирует модуль без запуска поллинга
+bot = tb.AutoConfigBot(tb.TELEGRAM_BOT_TOKEN)
 
-# Заглушки
+captured = []
+bot.bot.send_message = lambda chat_id, text, **kw: captured.append(text)
+bot.bot.reply_to = lambda m, text, **kw: captured.append(text)
+bot.bot.send_document = lambda chat_id, doc, **kw: captured.append("DOC: " + (kw.get('caption') or ''))
+
+
 class Chat:
     id = 123456789
 
-class StubUser:
+
+class User:
     id = 123456789
     username = "test_user"
 
-class StubMessage:
+
+class Message:
     def __init__(self, text):
         self.chat = Chat()
-        self.from_user = StubUser()
+        self.from_user = User()
         self.text = text
         self.id = 1
 
-replies = []
-documents = []
-bot_runner.bot.reply_to = lambda m, txt, **kw: replies.append((m.text, txt))
-bot_runner.bot.send_document = lambda chat_id, f, **kw: documents.append(kw.get('caption', ''))
 
-print("== /start ==")
-m = StubMessage('/start')
-bot_runner.send_welcome(m)
-for _, txt in replies:
-    print(txt.strip()[:400])
-replies.clear()
+def find_command_handler(command):
+    for h in bot.bot.message_handlers:
+        cmds = h.get('filters', {}).get('commands')
+        if cmds and command in cmds:
+            return h['function']
+    return None
 
-print("\n== /status ==")
-try:
-    m2 = StubMessage('/status')
-    bot_runner.system_status(m2)
-    for _, txt in replies:
-        print(txt.strip()[:400])
-    replies.clear()
-except Exception as e:
-    print("status ERR:", repr(e))
 
-print("\n== /test ==")
-try:
-    m3 = StubMessage('/test')
-    bot_runner.test_generation(m3)
-    print("replies:", [t[:200] for _, t in replies])
-    print("docs sent:", len(documents))
-    if documents:
-        print("doc caption:", documents[0].strip()[:400])
-except Exception as e:
-    import traceback
-    traceback.print_exc()
+for command in ("start", "status", "test"):
+    handler = find_command_handler(command)
+    print(f"== /{command} ==")
+    if not handler:
+        print("ХЕНДЛЕР НЕ НАЙДЕН")
+        continue
+    captured.clear()
+    try:
+        handler(Message("/" + command))
+    except Exception as e:
+        print("ОШИБКА:", repr(e))
+        continue
+    for text in captured:
+        print(text.strip()[:300])
+    print()
 
-print("\n== логика quick_generate (независимо) ==")
-from keenetic_config_generator import quick_generate
-tf, params = quick_generate(server_ip="93.184.216.34", sni_hostname="api.notion.com")
-print("param keys:", list(params.keys()))
-print("file:", tf, os.path.getsize(tf), "bytes")
-os.remove(tf)
-
-print("\n== SNIDatabase.get_stats ==")
-try:
-    from sni_manager import SNIDatabase
-    db = SNIDatabase()
-    print(db.get_stats())
-except Exception as e:
-    print("stats ERR:", repr(e))
-
-print("\nOK-DONE")
+print("OK-DONE")

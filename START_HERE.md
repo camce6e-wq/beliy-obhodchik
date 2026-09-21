@@ -185,10 +185,10 @@ python telegram_bot.py
 
 ## 🚀 ТВОИ ДЕЙСТВИЯ СЕЙЧАС
 
-1. **Открой GitHub** → создай репозиторий `beliy-obhodchik`
-2. **Открой @BotFather** → создай бота
-3. **Запусти скрипт** `setup_github.bat` (или .sh)
-4. **Напиши мне** если возникнут вопросы
+1. Репозиторий уже создан: `github.com/camce6e-wq/beliy-obhodchik`
+2. Бот создан: `@beliy_obhodchik_bot` (токен в `.env`)
+3. Запусти бота: `run_prod_bot.bat` (секреты берутся из `.env`)
+4. Сайт: `https://camce6e-wq.github.io/beliy-obhodchik/`
 
 **Через 30 минут** у тебя будет работающий бизнес.
 
