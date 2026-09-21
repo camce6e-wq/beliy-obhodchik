@@ -248,6 +248,31 @@ class PaymentSystem:
         
         logger.info(f"Заказ {order_id} отмечен как доставленный")
 
+    def save_vps_setup(self, user_id: int, server_ip: str, uuid: str,
+                       public_key: str, short_id: str,
+                       sni_hostname: str, sni_ip: str = None,
+                       install_method: str = "self") -> None:
+        """Сохранение реально установленной VPS-конфигурации (ключи x25519 с VPS)."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO vps_setups
+                (user_id, server_ip, uuid, public_key, short_id,
+                 sni_hostname, sni_ip, install_method)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, server_ip, uuid, public_key, short_id,
+                  sni_hostname, sni_ip, install_method))
+            conn.commit()
+        logger.info(f"Сохранены реальные ключи VPS для пользователя {user_id}")
+
+    def get_vps_setup(self, user_id: int) -> Optional[dict]:
+        """Получение реально установленных ключей VLESS Reality для пользователя."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM vps_setups WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
     def create_invoice_record(self, invoice_id: str, payment_id: str, user_id: int,
                               chat_id: int, server_ip: Optional[str],
                               sni_hostname: Optional[str], pay_url: str):
@@ -970,11 +995,35 @@ class AutoConfigBot:
             return False
         
         try:
-            # Генерируем конфигурацию
-            archive_path, params = quick_generate(
-                server_ip=user_data['server_ip'],
-                sni_hostname=user_data['sni_hostname']
-            )
+            # Ищем давно установленное VPS-подключение с реальными ключами
+            real_setup = None
+            try:
+                real_setup = self.payment_system.get_vps_setup(user_id)
+            except Exception:
+                real_setup = None
+            
+            if real_setup:
+                # Реальный конфиг: ключи уже установлены на VPS пользователя
+                generator = KeeneticConfigGenerator(
+                    server_ip=real_setup['server_ip'],
+                    server_port=443,
+                    uuid=real_setup['uuid'],
+                    sni_hostname=real_setup['sni_hostname'],
+                    public_key=real_setup['public_key'],
+                    short_id=real_setup['short_id']
+                )
+                archive_path = generator.create_complete_package()
+                params = {
+                    'uuid': real_setup['uuid'],
+                    'public_key': real_setup['public_key'],
+                    'short_id': real_setup['short_id']
+                }
+            else:
+                # Установка ещё не выполнена — генерируем демо-конфиг
+                archive_path, params = quick_generate(
+                    server_ip=user_data['server_ip'],
+                    sni_hostname=user_data['sni_hostname']
+                )
             
             # Создаём заказ в базе
             order_id = self.payment_system.create_order(
