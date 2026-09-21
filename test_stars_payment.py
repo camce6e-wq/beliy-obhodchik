@@ -20,6 +20,7 @@ bot = tb.AutoConfigBot(tb.TELEGRAM_BOT_TOKEN)
 sent_invoices = []
 sent_docs = []
 sent_msgs = []
+sent_markups = []
 
 
 def fake_send_invoice(chat_id, title, description, payload, provider_token, currency, prices, **kw):
@@ -38,6 +39,7 @@ def fake_send_document(chat_id, doc, **kw):
 
 def fake_send_message(chat_id, text, **kw):
     sent_msgs.append(text)
+    sent_markups.append(kw.get("reply_markup"))
     return SimpleNamespace(message_id=1)
 
 
@@ -112,11 +114,43 @@ msg = SimpleNamespace(
 )
 sp_handler(msg)
 
-assert len(sent_docs) == 1, "конфиг не отправлен после оплаты"
+# Ключей ещё нет -> вместо документа показываются кнопки выбора установки
+def _has_install_buttons():
+    return any(
+        m and any(
+            b.to_dict().get("callback_data") in ("install_ssh", "install_self")
+            for row2 in m.keyboard
+            for b in row2
+        )
+        for m in sent_markups
+    )
+
+assert len(sent_docs) == 0, "документ не должен отправляться до установки ключей"
+assert _has_install_buttons(), "не показаны кнопки выбора установки VPS"
 con = sqlite3.connect(DB)
 conf = con.execute("SELECT status FROM payments WHERE payment_id=?", (pid,)).fetchone()
 con.close()
 assert conf and conf[0] == "paid", "оплата не подтверждена"
 
-print("OK 3/3: оплата звёздами подтверждена, конфиг доставлен")
+# Установка выполнена -> доставка реального конфига
+bot.payment_system.save_vps_setup(
+    user_id=USER,
+    server_ip="95.217.1.1",
+    uuid="99999999-8888-7777-6666-555555555555",
+    public_key="starpub==",
+    short_id="aaaabbbb",
+    sni_hostname="api.notion.com",
+    install_method="ssh",
+)
+ok = bot.generate_and_send_config(USER, CHAT, data={
+    "payment_id": pid,
+    "user_id": USER,
+    "chat_id": CHAT,
+    "server_ip": "95.217.1.1",
+    "sni_hostname": "api.notion.com",
+})
+assert ok, "не удалось сгенерировать конфиг после установки ключей"
+assert len(sent_docs) == 1, "конфиг не отправлен после установки"
+
+print("OK 3/3: оплата звёздами подтверждена, кнопки установки показаны, после ключей конфиг доставлен")
 print("\nВСЕ ТЕСТЫ ПРОЙДЕНЫ")

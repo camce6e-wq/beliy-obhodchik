@@ -16,7 +16,7 @@ DB = os.path.join(TMP, "payments.db")
 REAL_PAYMENT_SYSTEM = tb.PaymentSystem
 
 
-def _payment_system_factory():
+def _payment_system_factory(*args, **kwargs):
     return REAL_PAYMENT_SYSTEM(db_path=DB)
 
 
@@ -112,23 +112,57 @@ assert bot.user_states[USER] == "awaiting_payment", "пользователь н
 
 print("OK 1/3: счёт создан, pay_url отправлен, pending + БД заполнены")
 
-# 2) Пользователь оплатил -> фоновый луп находит оплату и доставляет конфиг
+# 2) Пользователь оплатил -> фоновый луп находит оплату.
+#    Ключей ещё нет -> вместо документа показываются кнопки выбора установки.
 inv["status"] = "paid"
 fake.paid = [inv]
 bot._process_paid_invoices(fake.get_paid_invoices())
 
-assert len(sent_docs) == 1, "конфиг не отправлен"
+def _has_install_buttons():
+    return any(
+        m and any(
+            b.to_dict().get("callback_data") in ("install_ssh", "install_self")
+            for row2 in m.keyboard
+            for b in row2
+        )
+        for m in sent_markups
+    )
+
+assert _has_install_buttons(), "не показаны кнопки выбора установки VPS"
+assert len(sent_docs) == 0, "документ не должен отправляться до установки ключей"
 con = sqlite3.connect(DB)
 conf = con.execute("SELECT status FROM payments WHERE payment_id=?", (pid,)).fetchone()
-order = con.execute("SELECT order_id FROM orders WHERE payment_id=?", (pid,)).fetchone()
 invst = con.execute("SELECT status FROM invoices WHERE invoice_id=?", (inv["invoice_id"],)).fetchone()
 con.close()
 assert conf and conf[0] == "paid", "оплата не подтверждена"
-assert order, "заказ не создан"
 assert invst and invst[0] == "paid", "счёт не помечен paid"
 assert pid not in bot.pending_payments, "payment_id не убран из очереди"
 
-print("OK 2/3: оплата подтверждена, заказ создан, конфиг доставлен, счёт paid")
+# 2b) Установка выполнена (имитация ключей с VPS) -> доставка РЕАЛЬНОГО конфига
+bot.payment_system.save_vps_setup(
+    user_id=USER,
+    server_ip="45.88.101.5",
+    uuid="11111111-2222-3333-4444-555555555555",
+    public_key="realpub==",
+    short_id="11112222",
+    sni_hostname="api.notion.com",
+    install_method="self",
+)
+ok = bot.generate_and_send_config(USER, CHAT, data={
+    "payment_id": pid,
+    "user_id": USER,
+    "chat_id": CHAT,
+    "server_ip": "45.88.101.5",
+    "sni_hostname": "api.notion.com",
+})
+assert ok, "не удалось сгенерировать конфиг после установки ключей"
+assert len(sent_docs) == 1, "конфиг не отправлен после установки"
+con = sqlite3.connect(DB)
+order = con.execute("SELECT order_id FROM orders WHERE payment_id=?", (pid,)).fetchone()
+con.close()
+assert order, "заказ не создан"
+
+print("OK 2/3: оплата подтверждена, кнопки установки показаны, после ключей конфиг доставлен, счёт paid")
 
 # 2.5) Парсинг ответа getInvoices вида {"items": [...]}
 class _RealCrypto(tb.CryptoPayClient):
