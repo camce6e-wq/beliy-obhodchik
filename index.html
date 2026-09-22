@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Белый Обходчик — Интернет без ограничений на Keenetic</title>
+    <title>Белый Обходчик — интернет снова работает: ютуб, сайты, приложения</title>
     <style>
         /* Общие стили */
         * {
@@ -68,23 +68,27 @@
         /* Герой-секция */
         .hero {
             background: white;
-            padding: 80px 0;
+            padding: 70px 0;
             text-align: center;
             border-radius: 0 0 30px 30px;
             margin-bottom: 50px;
         }
         
         .hero h1 {
-            font-size: 48px;
+            font-size: 44px;
             margin-bottom: 20px;
             color: #333;
+            line-height: 1.2;
         }
         
         .hero h2 {
-            font-size: 24px;
+            font-size: 22px;
             color: #666;
             margin-bottom: 40px;
             font-weight: 400;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
         }
         
         .highlight {
@@ -103,6 +107,7 @@
             font-weight: bold;
             box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
             transition: transform 0.3s, box-shadow 0.3s;
+            margin: 8px;
         }
         
         .cta-button:hover {
@@ -110,7 +115,140 @@
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
         }
         
-        /* Секция "Как это работает" */
+        .cta-button.secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            box-shadow: none;
+        }
+        
+        .cta-button.secondary:hover {
+            background: #f0f2ff;
+        }
+
+        /* Секция «Боль → Решение» */
+        .pain-relief {
+            background: white;
+            padding: 60px 0;
+            margin-bottom: 50px;
+            border-radius: 30px;
+        }
+
+        .pain-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .pain-card {
+            padding: 30px;
+            border-radius: 15px;
+        }
+
+        .pain-card.bad {
+            background: #fff5f5;
+            border: 2px solid #ffd7d7;
+        }
+
+        .pain-card.good {
+            background: #f0fff4;
+            border: 2px solid #c6f6d5;
+        }
+
+        .pain-card .card-title {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .pain-card.bad .card-title { color: #c53030; }
+        .pain-card.good .card-title { color: #276749; }
+
+        .pain-card ul {
+            list-style: none;
+            text-align: left;
+        }
+
+        .pain-card li {
+            margin-bottom: 10px;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .pain-card.bad li:before {
+            content: "✗";
+            position: absolute;
+            left: 0;
+            color: #c53030;
+            font-weight: bold;
+        }
+
+        .pain-card.good li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #38a169;
+            font-weight: bold;
+        }
+
+        /* Секция «Что от вас → Что мы сделаем» */
+        .flow {
+            background: white;
+            padding: 60px 0;
+            margin-bottom: 50px;
+            border-radius: 30px;
+        }
+
+        .flow-columns {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+        }
+
+        .flow-card {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 15px;
+        }
+
+        .flow-card .flow-label {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .flow-card .flow-label.green { background: #38a169; }
+        .flow-card .flow-label.orange { background: #dd6b20; }
+
+        .flow-card ul {
+            list-style: none;
+        }
+
+        .flow-card li {
+            margin-bottom: 12px;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .flow-card li:before {
+            content: "➜";
+            position: absolute;
+            left: 0;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .flow-card.green li:before { color: #38a169; }
+        .flow-card.orange li:before { color: #dd6b20; }
+
+        /* Секция «Как это работает» */
         .how-it-works {
             background: white;
             padding: 60px 0;
@@ -160,7 +298,7 @@
             color: #333;
         }
         
-        /* Секция "Что вы получаете" */
+        /* Секция «Что вы получаете» */
         .features {
             background: white;
             padding: 60px 0;
@@ -184,10 +322,127 @@
         .feature-icon {
             font-size: 40px;
             margin-bottom: 20px;
-            color: #667eea;
         }
         
-        /* Секция "Почему это безопасно" */
+        /* Секция устройств */
+        .devices {
+            background: white;
+            padding: 60px 0;
+            margin-bottom: 50px;
+            border-radius: 30px;
+        }
+
+        .device-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .device-item {
+            background: #f8f9fa;
+            padding: 18px 25px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 500;
+        }
+
+        .device-item .dev-icon {
+            font-size: 26px;
+        }
+
+        .device-note {
+            text-align: center;
+            color: #666;
+            margin-top: 25px;
+        }
+
+        /* Секция услуг */
+        .services {
+            background: white;
+            padding: 60px 0;
+            margin-bottom: 50px;
+            border-radius: 30px;
+        }
+
+        .service-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            background: #f8f9fa;
+            padding: 20px 25px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .service-row .service-name {
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .service-row .service-desc {
+            color: #666;
+        }
+
+        .service-row a {
+            color: #667eea;
+            font-weight: bold;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        /* Секция «Зачем свой сервер» */
+        .why-vps {
+            background: white;
+            padding: 60px 0;
+            margin-bottom: 50px;
+            border-radius: 30px;
+        }
+
+        .why-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .why-point {
+            background: #f8f9fa;
+            padding: 25px 30px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .why-point strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 18px;
+        }
+
+        .why-point .mini-steps {
+            margin-top: 15px;
+            padding: 15px 20px;
+            background: white;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .why-point .mini-steps ol {
+            padding-left: 20px;
+        }
+
+        .why-point .mini-steps li {
+            margin-bottom: 8px;
+        }
+
+        .why-point .photo-note {
+            margin-top: 10px;
+            color: #999;
+            font-style: italic;
+        }
+
+        /* Секция «Почему это безопасно» */
         .safety {
             background: white;
             padding: 60px 0;
@@ -218,7 +473,7 @@
             font-weight: bold;
         }
         
-        /* Секция "Часто задаваемые вопросы" */
+        /* Секция «Часто задаваемые вопросы» */
         .faq {
             background: white;
             padding: 60px 0;
@@ -243,7 +498,7 @@
             color: #666;
         }
         
-        /* Секция "Цены" */
+        /* Секция «Цены» */
         .pricing {
             background: white;
             padding: 60px 0;
@@ -355,7 +610,7 @@
         /* Адаптивность */
         @media (max-width: 768px) {
             .hero h1 {
-                font-size: 36px;
+                font-size: 32px;
             }
             
             .hero h2 {
@@ -382,6 +637,10 @@
             .plan.recommended {
                 transform: none;
             }
+
+            .pain-columns {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -394,7 +653,7 @@
                 <nav>
                     <a href="#how-it-works">Как это работает</a>
                     <a href="#features">Что вы получаете</a>
-                    <a href="#safety">Безопасность</a>
+                    <a href="#why-vps">Зачем сервер</a>
                     <a href="#pricing">Цены</a>
                     <a href="#faq">Вопросы</a>
                 </nav>
@@ -405,9 +664,74 @@
     <!-- Герой-секция -->
     <section class="hero">
         <div class="container">
-            <h1>Интернет без ограничений на вашем Keenetic</h1>
-            <h2>Автоматическая настройка за <span class="highlight">15 минут</span> без технических знаний</h2>
-            <a href="#pricing" class="cta-button">Получить доступ за 500 ₽</a>
+            <h1>Ютуб грузится, сайты открываются,<br>приложения работают — как раньше</h1>
+            <h2>Мы делаем настройку за вас. От вас — одна оплата и пара минут: бот сам подключится к вашей «заграничной коробочке», настроит её и пришлёт готовый файл для вашего роутера. Никаких команд и технических слов.</h2>
+            <a href="#pricing" class="cta-button">Начать за 500 ₽</a>
+            <a href="https://t.me/beliy_obhodchik_bot" class="cta-button secondary" target="_blank" rel="noopener">Открыть бота →</a>
+        </div>
+    </section>
+
+    <!-- Боль → Решение -->
+    <section class="pain-relief">
+        <div class="container">
+            <h2 class="section-title">Вы хотите — мы сделаем</h2>
+            <div class="pain-columns">
+                <div class="pain-card bad">
+                    <div class="card-title">Сейчас раздражает:</div>
+                    <ul>
+                        <li>Ютуб «крутится» и не грузится</li>
+                        <li>Сайты и приложения не открываются</li>
+                        <li>Приходится разбираться в «настройках»</li>
+                        <li>Покупные VPN падают и тормозят</li>
+                        <li>Бесплатные меняют адрес по сто раз в день</li>
+                    </ul>
+                </div>
+                <div class="pain-card good">
+                    <div class="card-title">Будет, как вы хотите:</div>
+                    <ul>
+                        <li>Всё открывается быстро и без пауз</li>
+                        <li>Работает у всей семьи: ТВ, телефон, ноутбук</li>
+                        <li>Вы не разбираетесь ни в чём — мы за вас</li>
+                        <li>Стабильно месяцами, мы сами следим</li>
+                        <li>Ваш личный канал, не «общественный»</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Что от вас → Что мы сделаем -->
+    <section class="flow">
+        <div class="container">
+            <h2 class="section-title">Честно: кто что делает</h2>
+            <div class="flow-columns">
+                <div class="flow-card">
+                    <span class="flow-label">Что нужно от вас (один раз)</span>
+                    <ul>
+                        <li>Купить маленький «сервер-коробочку» за границей — от 150 ₽/мес. Как за 1 минуту: → пошагово ниже</li>
+                        <li>Оплатить настройку: 500 ₽ или 250 ⭐</li>
+                        <li>Прислать боту адрес сервера и пароль — всё</li>
+                    </ul>
+                </div>
+                <div class="flow-card green">
+                    <span class="flow-label green">Что мы делаем сами</span>
+                    <ul>
+                        <li>Подключаемся и настраиваем ваш сервер автоматически</li>
+                        <li>Собираем готовые настройки именно для вашего устройства</li>
+                        <li>Ведём автообновление: если что-то заблокируют — поменяем сами</li>
+                        <li>Поддержка 30 дней в Telegram</li>
+                    </ul>
+                </div>
+                <div class="flow-card orange">
+                    <span class="flow-label orange">Почему это лучше покупного VPN</span>
+                    <ul>
+                        <li>Ваш личный, не забитый тысячами людей канал</li>
+                        <li>Скорость высокая, адрес один, стабильный</li>
+                        <li>Никто не собирает ваши данные (в отличие от «бесплатных»)</li>
+                        <li>Сервер принадлежит вам — полный контроль</li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </section>
 
@@ -418,18 +742,51 @@
             <div class="steps">
                 <div class="step">
                     <div class="step-number">1</div>
-                    <h3>Покупаете VPS за границей</h3>
-                    <p>Обычный VPS (100-200 ₽/месяц). Рекомендуем <a href="https://my.adminvps.ru/aff.php?aff=32386" target="_blank" rel="noopener">AdminVPS</a> — промокод <b>BELOBH</b> на скидку.</p>
+                    <h3>Покупаете «коробочку» за границей</h3>
+                    <p>Обычный маленький сервер. Рекомендуем <a href="https://my.adminvps.ru/aff.php?aff=32386" target="_blank" rel="noopener">AdminVPS</a> — промокод <b>BELOBH</b> на скидку. Ниже — пошаговая инструкция.</p>
                 </div>
                 <div class="step">
                     <div class="step-number">2</div>
-                    <h3>Запускаете наш скрипт</h3>
-                    <p>Копируете одну команду → всё настраивается автоматически</p>
+                    <h3>Бот всё настраивает сам</h3>
+                    <p>Подключается к вашему серверу и ставит софт автоматически. Вы ничего не вводите в терминал.</p>
                 </div>
                 <div class="step">
                     <div class="step-number">3</div>
-                    <h3>Загружаете файл в роутер</h3>
-                    <p>Скачиваете архив → загружаете в Keenetic → интернет работает</p>
+                    <h3>Загружаете готовый файл в роутер</h3>
+                    <p>Скачиваете архив из чата → загружаете в роутер → интернет снова работает. Приложения? Тоже готовый файл всего в пару шагов.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Зачем свой сервер -->
+    <section id="why-vps" class="why-vps">
+        <div class="container">
+            <h2 class="section-title">Зачем нужен «свой сервер»</h2>
+            <div class="why-content">
+                <div class="why-point">
+                    <strong>Что это такое, простыми словами</strong>
+                    Это небольшая удалённая «коробочка» за границей, через которую идёт ваш интернет. Покупается у провайдера отдельно (от 150 ₽/мес) и имеет к нашей плате за настройку мало отношения.
+                </div>
+                <div class="why-point">
+                    <strong>Почему не «просто VPN за 200 ₽»?</strong>
+                    Покупные VPN делят один канал между тысячами людей: скорость падает, сервера блокируют, а компания видит ваши запросы. Свой сервер — только ваш: быстрый, стабильный и приватный.
+                </div>
+                <div class="why-point">
+                    <strong>А бесплатные VPN?</strong>
+                    Бесплатное — это вы. Такие сервисы торгуют вашими данными, меняют адрес по 100 раз в день, и сайты всё равно не открываются. Свой сервер — предсказуемо и без сюрпризов.
+                </div>
+                <div class="why-point">
+                    <strong>Как завести за 1 минуту</strong>
+                    <div class="mini-steps">
+                        <ol>
+                            <li>Откройте <a href="https://my.adminvps.ru/aff.php?aff=32386" target="_blank" rel="noopener">AdminVPS</a> и нажмите «Заказать сервер»</li>
+                            <li>Выберите страну поближе к вам (параметры не важны — дешёвый тариф отлично подходит)</li>
+                            <li>Придумайте пароль и оплатите картой или криптой</li>
+                            <li>Пришлите боту адрес вида <b>123.45.67.89</b> и пароль — остальное сделаем мы</li>
+                        </ol>
+                        <p class="photo-note">*(места для 2–4 скриншотов: заказ → страна → пароль → адрес IP)</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -442,25 +799,67 @@
             <div class="feature-grid">
                 <div class="feature">
                     <div class="feature-icon">⚡</div>
-                    <h3>Автоматическая настройка</h3>
-                    <p>Никаких команд в терминале. Просто запустили скрипт — всё готово.</p>
+                    <h3>Полная автоматизация</h3>
+                    <p>Бот сам подключается, ставит и настраивает. Никаких команд в терминале.</p>
                 </div>
                 <div class="feature">
                     <div class="feature-icon">🔄</div>
                     <h3>Автообновления</h3>
-                    <p>Если маскировка перестанет работать — система сама найдёт новую.</p>
+                    <p>Перестало открываться что-то? Система сама найдёт новую маскировку и обновит настройки.</p>
                 </div>
                 <div class="feature">
                     <div class="feature-icon">🛡️</div>
                     <h3>Раздельная маршрутизация</h3>
-                    <p>Только заблокированные сайты через VPN, остальное — напрямую.</p>
+                    <p>Только то, что нужно — через сервер. Остальное идёт как обычно, на полной скорости.</p>
                 </div>
                 <div class="feature">
                     <div class="feature-icon">📱</div>
-                    <h3>Работает на всех устройствах</h3>
-                    <p>Ноутбуки, телефоны, телевизоры — всё подключается через роутер.</p>
+                    <h3>Все устройства дома</h3>
+                    <p>Ноутбуки, телефоны, телевизоры, приставки — всё через роутер, без настройки каждого.</p>
                 </div>
             </div>
+        </div>
+    </section>
+
+    <!-- Устройства -->
+    <section id="devices" class="devices">
+        <div class="container">
+            <h2 class="section-title">На каких устройствах</h2>
+            <div class="device-list">
+                <div class="device-item"><span class="dev-icon">📡</span> Keenetic (все модели со встроенным VPN)</div>
+                <div class="device-item"><span class="dev-icon">🖥️</span> ASUS (модели с VPN-клиентом)</div>
+                <div class="device-item"><span class="dev-icon">🔧</span> Роутеры на OpenWrt</div>
+                <div class="device-item"><span class="dev-icon">📶</span> Xiaomi / MI Router</div>
+                <div class="device-item"><span class="dev-icon">🌐</span> TP-Link (модели с VPN-клиентом)</div>
+                <div class="device-item"><span class="dev-icon">🤖</span> Android-телефон (v2rayNG)</div>
+                <div class="device-item"><span class="dev-icon">🍏</span> iPhone (Streisand)</div>
+                <div class="device-item"><span class="dev-icon">💻</span> Компьютер Windows / macOS / Linux</div>
+            </div>
+            <p class="device-note">Нужного устройства нет в списке? Всё равно пишите в бота — конфиг подходит для большинства современных приложений.</p>
+        </div>
+    </section>
+
+    <!-- Услуги -->
+    <section id="services" class="services">
+        <div class="container">
+            <h2 class="section-title">Что ещё можем настроить за вас</h2>
+            <div class="service-row">
+                <div><span class="service-name">Claude Code</span> <span class="service-desc">— установка и настройка на вашем сервере</span></div>
+                <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">Спросить →</a>
+            </div>
+            <div class="service-row">
+                <div><span class="service-name">MT4 / MT5 и торговые терминалы</span> <span class="service-desc">— стабильный доступ к зарубежным серверам</span></div>
+                <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">Спросить →</a>
+            </div>
+            <div class="service-row">
+                <div><span class="service-name">Несколько серверов</span> <span class="service-desc">— резервные каналы под рукой</span></div>
+                <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">Спросить →</a>
+            </div>
+            <div class="service-row">
+                <div><span class="service-name">Перенос настроек</span> <span class="service-desc">— сменили роутер? Всё переедет само</span></div>
+                <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">Спросить →</a>
+            </div>
+            <p style="text-align:center; margin-top:25px; color:#666;">Есть своя задача? Напишите поддержке: <a href="https://t.me/beliy_obhodchik_support" target="_blank" rel="noopener">@beliy_obhodchik_support</a></p>
         </div>
     </section>
 
@@ -476,7 +875,7 @@
                         <strong>Ваш сервер</strong> — вы арендуете VPS (например, у <a href="https://my.adminvps.ru/aff.php?aff=32386" target="_blank" rel="noopener">AdminVPS</a>)
                     </div>
                     <div class="safety-point">
-                        <strong>Ваши настройки</strong> — скрипт только помогает автоматизировать процесс
+                        <strong>Ваши настройки</strong> — автоматизация лишь помогает сделать их самостоятельно
                     </div>
                     <div class="safety-point">
                         <strong>Ваш интернет</strong> — мы не имеем доступа к вашему трафику
@@ -498,20 +897,20 @@
                     <div class="plan-badge">Рекомендуем</div>
                     <h3>Полный пакет</h3>
                     <div class="plan-price">500 ₽</div>
-                    <p>Единоразовый платёж</p>
+                    <p>Единоразовый платёж (или 250 ⭐)</p>
                     <ul class="plan-features">
-                        <li>Автоматический установщик для VPS</li>
-                        <li>Готовый конфиг для Keenetic</li>
-                        <li>Правила HydraRoute</li>
-                        <li>Автообновления SNI-доноров</li>
+                        <li>Бот сам подключается и настраивает сервер</li>
+                        <li>Готовые настройки для вашего устройства</li>
+                        <li>Автообновления при блокировках</li>
                         <li>Поддержка в Telegram 30 дней</li>
-                        <li>Инструкция на 5 шагов</li>
+                        <li>Инструкция на 5 шагов (и вы не «технарь»)</li>
+                        <li>Помощь, если что-то не получилось</li>
                     </ul>
                     <a href="https://t.me/beliy_obhodchik_bot" class="cta-button" target="_blank" rel="noopener">Купить сейчас</a>
                 </div>
             </div>
             <p style="text-align: center; margin-top: 30px; color: #666;">
-                + стоимость VPS (от 150 ₽/месяц у
+                + отдельно оплачивается сам сервер (от 150 ₽/мес у
                 <a href="https://my.adminvps.ru/aff.php?aff=32386" target="_blank" rel="noopener">AdminVPS</a>),
                 промокод на скидку: <b>BELOBH</b>
             </p>
@@ -521,31 +920,39 @@
     <!-- Часто задаваемые вопросы -->
     <section id="faq" class="faq">
         <div class="container">
-            <h2 class="section-title">Часто задаваемые вопросы</h2>
+            <h2 class="section-title">Частые вопросы — честно и простыми словами</h2>
             <div class="faq-list">
                 <div class="faq-item">
                     <div class="faq-question">Нужны ли технические знания?</div>
-                    <div class="faq-answer">Нет. Всё делается автоматически: скопировали команду → вставили → готово.</div>
+                    <div class="faq-answer">Нет. Бот сам подключается к вашему серверу и всё настраивает. Вы только оплачиваете и загружаете готовый файл — как загружаете фото или документ.</div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question">Почему нельзя просто купить VPN за 200 ₽?</div>
+                    <div class="faq-answer">Покупной VPN делят тысяча людей: скорость падает, сервера блокируют, компания видит, что вы смотрите. Свой сервер — быстрый, стабильный и только ваш.</div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question">А бесплатные VPN?</div>
+                    <div class="faq-answer">Бесплатные сервисы торгуют вашими данными, меняют адрес по 100 раз в день, и сайты всё равно не открываются. Это ложная экономия.</div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-question">Я боюсь покупать «сервер», это же сложно?</div>
+                    <div class="faq-answer">Это как купить подписку: выбрали страну, придумали пароль, оплатили картой — 1 минута. Пошагово с картинками в разделе «Зачем свой сервер». Если застряли — поддержка поможет лично.</div>
                 </div>
                 <div class="faq-item">
                     <div class="faq-question">Что если маскировка перестанет работать?</div>
-                    <div class="faq-answer">Система сама найдёт новую и обновит настройки в роутере.</div>
+                    <div class="faq-answer">Мы используем маскировку Reality: провайдер видит обычный безопасный сайт, а не VPN. А если что-то заблокируют — система сама найдёт новую и обновит настройки.</div>
                 </div>
                 <div class="faq-item">
                     <div class="faq-question">Это легально?</div>
-                    <div class="faq-answer">Да. Вы настраиваете свой сервер для личного использования. Это как настроить компьютер.</div>
+                    <div class="faq-answer">Да. Вы настраиваете свой сервер для личного использования — это как настроить свой компьютер или роутер.</div>
                 </div>
                 <div class="faq-item">
                     <div class="faq-question">Нужно ли платить каждый месяц?</div>
-                    <div class="faq-answer">Только за VPS (100-200 ₽/месяц). Наши обновления бесплатны.</div>
+                    <div class="faq-answer">Только за сам сервер (от 150 ₽/мес). Наши настройки, обновления и поддержка бесплатны после разовой оплаты.</div>
                 </div>
                 <div class="faq-item">
-                    <div class="faq-question">А если не получится?</div>
-                    <div class="faq-answer">Вернём деньги или поможем настроить. Мы заинтересованы в том, чтобы у вас всё работало.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-question">Какие роутеры поддерживаются?</div>
-                    <div class="faq-answer">Все модели Keenetic с возможностью установки Xray/Sing-box.</div>
+                    <div class="faq-question">Какие устройства поддерживаются?</div>
+                    <div class="faq-answer">Keenetic, ASUS, роутеры на OpenWrt, Xiaomi, TP-Link, Android, iPhone, ПК. Полный список выше. Чего-то нет? Спросите — подберём вариант.</div>
                 </div>
             </div>
         </div>
@@ -557,14 +964,14 @@
             <div class="footer-content">
                 <div class="footer-column">
                     <h4>БелыйОбходчик</h4>
-                    <p>Автоматическая система настройки интернета без ограничений на Keenetic роутерах.</p>
+                    <p>Возвращаем интернет тем, кто не хочет разбираться в технике. Автоматическая настройка вашего личного сервера.</p>
                 </div>
                 <div class="footer-column">
                     <h4>Ссылки</h4>
                     <ul class="footer-links">
                         <li><a href="#how-it-works">Как это работает</a></li>
                         <li><a href="#features">Что вы получаете</a></li>
-                        <li><a href="#safety">Безопасность</a></li>
+                        <li><a href="#why-vps">Зачем свой сервер</a></li>
                         <li><a href="#pricing">Цены</a></li>
                         <li><a href="#faq">Вопросы</a></li>
                     </ul>
@@ -572,8 +979,8 @@
                 <div class="footer-column">
                     <h4>Поддержка</h4>
                     <ul class="footer-links">
-                        <li>Telegram: <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">@beliy_obhodchik_bot</a></li>
-                        <li>Оформить заказ: <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">открыть бота</a></li>
+                        <li>Telegram-бот: <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">@beliy_obhodchik_bot</a></li>
+                        <li>Поддержка: <a href="https://t.me/beliy_obhodchik_support" target="_blank" rel="noopener">@beliy_obhodchik_support</a></li>
                         <li>Часы работы: 10:00-22:00</li>
                     </ul>
                 </div>
@@ -582,7 +989,7 @@
                     <p>Оплата проходит внутри Telegram-бота:<br>
                     • 💳 Crypto Bot (USDT)<br>
                     • ⭐ Звёзды Telegram<br>
-                    Конфиг выдаётся автоматически после оплаты.</p>
+                    Настройки выдаются автоматически после оплаты.</p>
                 </div>
             </div>
             <div class="copyright">
@@ -592,7 +999,7 @@
     </footer>
 
     <script>
-        // Простая анимация FAQ
+        // Раскрытие FAQ
         document.querySelectorAll('.faq-question').forEach(question => {
             question.addEventListener('click', () => {
                 const answer = question.nextElementSibling;
@@ -616,8 +1023,7 @@
             });
         });
 
-        // Кнопка покупки: внешние ссылки открываются как обычно,
-        // внутренние якоря — плавной прокруткой
+        // Внутренние якоря кнопок — плавной прокруткой
         document.querySelectorAll('.cta-button').forEach(button => {
             const href = button.getAttribute('href') || '';
             if (href.startsWith('#')) {
@@ -646,8 +1052,7 @@
             });
         }, observerOptions);
 
-        // Применяем анимацию к элементам
-        document.querySelectorAll('.step, .feature, .faq-item').forEach(el => {
+        document.querySelectorAll('.step, .feature, .faq-item, .device-item, .service-row, .why-point, .pain-card, .flow-card').forEach(el => {
             el.style.opacity = '0';
             el.style.transform = 'translateY(20px)';
             el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
