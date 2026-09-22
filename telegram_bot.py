@@ -682,6 +682,16 @@ class AutoConfigBot:
                 return self.SUPPORT_ANSWERS[topic]
         return None
 
+    def _main_menu_keyboard(self) -> 'types.ReplyKeyboardMarkup':
+        """Постоянная клавиатура со всеми командами (кнопки отправляют готовые команды).
+        Меню остаётся внизу чата навсегда, пока пользователь сам не скроет его."""
+        kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2, is_persistent=True)
+        kb.add(types.KeyboardButton("🛒 /buy"), types.KeyboardButton("🎛 /router"))
+        kb.add(types.KeyboardButton("🖥 /vps"), types.KeyboardButton("📖 /guide"))
+        kb.add(types.KeyboardButton("❓ /faq"), types.KeyboardButton("🎧 /support"))
+        kb.add(types.KeyboardButton("📦 /myorders"), types.KeyboardButton("🚪 /exit"))
+        return kb
+
     def _forward_to_owner(self, message) -> bool:
         """Пересылает вопрос владельцам. Возвращает True, если уведомили хоть одного."""
         if not ADMIN_USER_IDS:
@@ -763,7 +773,12 @@ class AutoConfigBot:
 Начать просто: нажмите → /buy
             """
             
-            self.bot.reply_to(message, welcome_text, parse_mode='Markdown')
+            self.bot.send_message(
+                message.chat.id,
+                welcome_text,
+                parse_mode='Markdown',
+                reply_markup=self._main_menu_keyboard(),
+            )
         
         @self.bot.message_handler(commands=['buy'])
         def start_purchase(message):
