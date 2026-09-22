@@ -675,6 +675,13 @@ class AutoConfigBot:
 
 🎁 *Почему это лучше, чем «купить VPN за 200₽»:* наш сервер принадлежит *вам* — высокая скорость, личный не забитый IP, без падений и слежки. Подробно: /faq
 
+📌 *Команды:*
+/buy — начать настройку
+/vps — как завести сервер
+/faq — ответы на вопросы
+/guide — полная инструкция
+/support — чат поддержки
+
 Начать просто: нажмите → /buy
             """
             
@@ -1222,7 +1229,7 @@ class AutoConfigBot:
 
 Подробная инструкция: см. [INSTRUCTIONS.md](https://github.com/camce6e-wq/beliy-obhodchik/blob/main/INSTRUCTIONS.md)
 
-Нужна помощь? @beliy_obhodchik_support
+Нужна помощь? Напишите: /support (вопрос уйдёт человеку) или поддержке @beliy_obhodchik_support
             """.format(
                 stars=STARS_PRICE,
                 devices="\n".join(f"• {d}" for d in SUPPORTED_DEVICES),
