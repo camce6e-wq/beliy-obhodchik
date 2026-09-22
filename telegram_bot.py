@@ -88,6 +88,52 @@ ADDITIONAL_SERVICES = [
     ("Перенос настроек с одного роутера на другой", "сменили роутер — всё переехало"),
 ]
 
+# ===== Каталог роутеров для подбора =====
+# Ключ callback -> (название категории, описание, список моделей)
+# Каждая модель: (имя, цена, фичи, годный_ли_VPN)
+ROUTER_CATEGORIES = {
+    "budget": (
+        "Бюджетный роутер",
+        "Для квартиры-студии или 1-2 комнат: базовый интернет, телефон и ноутбук.",
+        [
+            ("TP-Link Archer AX55", "~4 000 ₽", "Wi-Fi 6, до 2400 Мбит/с, VPN-клиент есть"),
+            ("Xiaomi Redmi Router AX3000", "~3 000 ₽", "Wi-Fi 6, быстрый, VPN-клиент через OpenWrt"),
+        ]
+    ),
+    "mid": (
+        "Средний роутер",
+        "Для дома до 100 м² или 3-4 комнат: стабильный VPN, много устройств.",
+        [
+            ("Keenetic Giga", "~8 000 ₽", "Wi-Fi 5+6, без проблем с Xray, родная поддержка VLESS Reality"),
+            ("Keenetic Hopper", "~9 000 ₽", "Wi-Fi 6, мощный, для тяжёлых задач"),
+            ("ASUS RT-AX55", "~6 000 ₽", "Wi-Fi 6, встроенный VPN-клиент"),
+        ]
+    ),
+    "premium": (
+        "Мощный роутер",
+        "Для дома со многими устройствами, игр и 4K-видео, площадь любая.",
+        [
+            ("Keenetic Ultra", "~15 000 ₽", "Флагман, WiFi 6E, топовый VPN"),
+            ("ASUS ROG Rapture / RT-AX86U", "~20 000 ₽", "Для требовательных пользователей"),
+        ]
+    ),
+    "keenetic_family": (
+        "Уже есть Keenetic?",
+        "Роутеры Keenetic — наши любимые: на них настройка максимально автоматическая.",
+        [
+            ("Любая модель Giga/Ultra/Hopper/Omni", "от 3 000 ₽ (б/у)", "Просто скажите, какая у вас модель"),
+        ]
+    ),
+}
+
+# Роутеры, с которыми работаем «кнопкой в один клик» (авто-генерация готового ZIP)
+SUPPORTED_ROUTER_MODELS = [
+    "Keenetic Giga",
+    "Keenetic Ultra",
+    "Keenetic Hopper",
+    "Keenetic Omni",
+]
+
 # Промокод на скидку для рекомендуемых площадок (пусто = не показывать).
 PROMO_CODE = "BELOBH"
 
@@ -563,12 +609,14 @@ class AutoConfigBot:
             "Почему это лучше покупного VPN: /faq"
         ),
         "router": (
-            "🎛 *Как загрузить настройки в роутер:*\n"
-            "После установки бот пришлёт ZIP-архив. Загружаете его в роутер "
-            "(или импортируете конфиг) — и всё работает у всей семьи.\n\n"
-            "Поддерживаемые устройства: Keenetic, ASUS, OpenWrt, Xiaomi, TP-Link, "
-            "Android, iPhone, ПК. Полный список и инструкция: /guide\n\n"
-            "Не нашли ваш роутер? Напишите «не мой роутер» — подберём вариант."
+            "🎛 *Ищем роутер?*\n"
+            "Если ещё не купили — нажмите /router: я подберу модель под вашу "
+            "ситуацию (бюджетная/средняя/мощная, а если уже есть Keenetic — проверим её).\n\n"
+            "*Уже есть роутер:* назовите модель (например «Keenetic Giga» или "
+            "«TP-Link Archer AX55») — подскажу, что делать.\n\n"
+            "*Как загрузить настройки:* после установки бот пришлёт ZIP-архив — "
+            "загружаете его в роутер и всё работает у всей семьи.\n\n"
+            "Полный список устройств: /guide"
         ),
         "problem": (
             "🛠 *Не работает? Действуем по шагам:*\n"
@@ -600,6 +648,35 @@ class AutoConfigBot:
     def _support_auto_answer(self, text: str):
         """Возвращает ответ на типовой вопрос или None, если вопрос не понят."""
         tl = (text or "").lower()
+
+        # Сначала ищем конкретные модели роутеров (специфичные ответы)
+        t = tl
+        if any(name in t for name in ("giga", "ultra", "hopper", "omni", "keenetic omni", "keenetic giga")):
+            return (
+                "🎛 *Keenetic — отличный выбор!*\n"
+                "Ваша модель Keenetic полностью поддерживается: я подготовлю готовый "
+                "архив для загрузки в роутер «в один клик».\n\n"
+                "Порядок: 1) заведите сервер → /vps \n"
+                "2) жмите /buy и пришлите боту пароль от сервера — я сам всё настрою.\n"
+                "После установки пришлю готовый ZIP для вашего Keenetic."
+            )
+        if "archer" in t or "tp-link" in t:
+            return (
+                "🌐 *TP-Link Archer — рабочий вариант.*\n"
+                "У таких роутеров есть встроенный VPN-клиент, но конфиг подгружается "
+                "не «в один клик», как на Keenetic. Я подготовлю все данные (VLESS URL), "
+                "а вы импортируете их в приложение на телефоне или в OpenWrt на роутере.\n\n"
+                "Закажите настройку /buy — в комплекте будет инструкция именно под TP-Link."
+            )
+        if "redmi" in t or "xiaomi" in t:
+            return (
+                "📶 *Xiaomi/Redmi — вариант для тех, кто не боится настройки.*\n"
+                "Из коробки VPN-клиента нет — понадобится установить OpenWrt или "
+                "подключить телефон через приложение. Бот выдаст все ключи и короткую "
+                "инструкцию. Сложнее, чем Keenetic, но работает.\n\n"
+                "Рекомендация: для «один клик и забыл» лучше взять Keenetic. Подобрать: /router"
+            )
+
         for keywords, topic in self.SUPPORT_RULES:
             if any(kw in tl for kw in keywords):
                 return self.SUPPORT_ANSWERS[topic]
@@ -677,6 +754,7 @@ class AutoConfigBot:
 
 📌 *Команды:*
 /buy — начать настройку
+/router — подобрать роутер
 /vps — как завести сервер
 /faq — ответы на вопросы
 /guide — полная инструкция
@@ -1100,6 +1178,29 @@ class AutoConfigBot:
                         "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support",
                     )
             
+            elif call.data.startswith("router_"):
+                key = call.data[len("router_"):]
+                info = ROUTER_CATEGORIES.get(key)
+                if not info:
+                    self.bot.send_message(call.message.chat.id, "❌ Категория не найдена. Попробуйте /router снова.")
+                    return
+                title, desc, models = info
+                lines = [f"📡 *{title}*", "", desc, ""]
+                for name, price, feats in models:
+                    lines.append(f"• *{name}* — {price}")
+                    lines.append(f"   {feats}")
+                lines.append("")
+                lines.append("🛠 *Дальше просто:*")
+                lines.append("1. Купите/возьмите роутер из списка")
+                lines.append("2. Заведите сервер за минуту: /vps")
+                lines.append("3. Жмите /buy — я всё настрою за вас")
+                lines.append("")
+                if key == "keenetic_family":
+                    lines.append("💡 Назовите модель (например «Giga» или «Ультра») — я проверю, подходит ли она.")
+                else:
+                    lines.append("💡 Если не уверены — напишите в /support, подскажем.")
+                self.bot.send_message(call.message.chat.id, "\n".join(lines), parse_mode='Markdown')
+
             elif call.data == "create_new":
                 self.user_states[user_id] = None
                 self.user_data[user_id] = {}
@@ -1168,6 +1269,29 @@ class AutoConfigBot:
             """
             self.bot.send_message(message.chat.id, vps_text, parse_mode='Markdown', disable_web_page_preview=True)
         
+        @self.bot.message_handler(commands=['router'])
+        def send_router_help(message):
+            if not self._guard_message(message):
+                return
+            user_id = message.from_user.id
+            if self._antiflood(user_id, COMMAND_COOLDOWN):
+                self._notify_slow(message.chat.id, user_id)
+                return
+            markup = types.InlineKeyboardMarkup()
+            for key, (title, _, _) in ROUTER_CATEGORIES.items():
+                markup.add(types.InlineKeyboardButton(title, callback_data=f"router_{key}"))
+            self.bot.send_message(
+                message.chat.id,
+                "📡 *Подбор роутера*\n\n"
+                "Нажмите, что подходит под вашу ситуацию, и я порекомендую модель "
+                "с которой всё будет работать из коробки:\n\n"
+                "*Важно:* для автоматической настройки проще всего роутер Keenetic "
+                "— на нём всё ставится «в один клик». Но и другие модели подойдут.\n\n"
+                "Выберите категорию:",
+                parse_mode='Markdown',
+                reply_markup=markup,
+            )
+
         @self.bot.message_handler(commands=['faq'])
         def send_faq(message):
             if not self._guard_message(message):
@@ -1223,6 +1347,8 @@ class AutoConfigBot:
 
 🎛 *На какие устройства даём готовые настройки:*
 {devices}
+
+💡 Не знаете, какой роутер подойдёт? → /router — подберём модель.
 
 🛠 *Что ещё можем настроить за вас (пишите в поддержку):*
 {services}
