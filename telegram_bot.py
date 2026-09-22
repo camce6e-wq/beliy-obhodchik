@@ -667,7 +667,8 @@ class AutoConfigBot:
                 message.chat.id,
                 "⏳ Подключаюсь к вашему VPS и ставлю Xray... Это занимает 1-3 минуты."
             )
-            ud = self.user_data.get(user_id, {})
+            ud = self.user_data.setdefault(user_id, {})
+            ud['ssh_password'] = password
             threading.Thread(
                 target=self._run_ssh_install,
                 args=(user_id, message.chat.id, password, ud),
@@ -821,6 +822,23 @@ class AutoConfigBot:
                     "🔑 Пришлите пароль `root` от вашего VPS одной строкой. "
                     "Бот сам подключится по SSH, поставит Xray и заберёт ключи."
                 )
+
+            elif call.data == "retry_ssh_install":
+                ud = self.user_data.get(user_id, {})
+                password = ud.get('ssh_password')
+                if not ud.get('server_ip') or not ud.get('sni_hostname') or not password:
+                    self.bot.send_message(call.message.chat.id, "❌ Данные заказа потеряны. Наберите /buy заново.")
+                    return
+                self.user_states[user_id] = None
+                self.bot.send_message(
+                    call.message.chat.id,
+                    "⏳ Повторяю попытку подключения по SSH и установки Xray... Это займёт 1-3 минуты."
+                )
+                threading.Thread(
+                    target=self._run_ssh_install,
+                    args=(user_id, call.message.chat.id, password, ud),
+                    daemon=True,
+                ).start()
             
             elif call.data == "cancel_purchase":
                 self.bot.send_message(call.message.chat.id, "❌ Заказ отменён.")
@@ -1346,6 +1364,25 @@ class AutoConfigBot:
                                          sni_hostname=sni_hostname,
                                          sni_ip=sni_ip,
                                          install_method="ssh")
+        except paramiko.AuthenticationException as e:
+            logger.error("SSH-ошибка авторизации для %s (%s): %s", user_id, server_ip, e)
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton("🔁 Я всё включил — попробуй ещё раз", callback_data="retry_ssh_install"))
+            self.bot.send_message(
+                chat_id,
+                "❌ Не удалось авторизоваться по SSH на `root`.\n\n"
+                "Чаще всего на VPS вход по паролю для root отключён. "
+                "Выполните на сервере эти команды:\n\n"
+                "```\n"
+                "sudo sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\n"
+                "sudo sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\n"
+                "sudo systemctl restart ssh\n"
+                "```\n"
+                "Также проверьте, что пароль `root` верный.",
+                parse_mode='Markdown',
+                reply_markup=markup,
+            )
+            self.user_states[user_id] = None
         except Exception as e:
             logger.error("SSH-ошибка установки для %s (%s): %s", user_id, server_ip, e)
             self.bot.send_message(
