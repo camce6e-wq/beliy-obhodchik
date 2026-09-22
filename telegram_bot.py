@@ -408,6 +408,9 @@ class AutoConfigBot:
         # Данные пользователей (user_id -> data)
         self.user_data = {}
 
+        # Карта пересланных сообщений поддержки: message_id у владельца -> (user_id, chat_id)
+        self.support_forwards = {}
+
         # Ожидающие оплаты: payment_id -> {payment_id, user_id, chat_id, server_ip, sni_hostname}
         self.pending_payments = {}
 
@@ -504,6 +507,139 @@ class AutoConfigBot:
                 )
                 return True
         return False
+
+    # ===== Поддержка: автоответ + пересылка владельцу =====
+    SUPPORT_RULES = [
+        (("оплат", "крипт", "usdt", "звезд", "stars", "счёт", "счет",
+          "платеж", "платёж", "инвойс", "монет", "crypto"), "оплата"),
+        (("установ", "скрипт", "setup", "ssh", "пароль", "root", "хван",
+          "sanek", "sani", "xray"), "install"),
+        (("ip", "адрес", "address"), "ip"),
+        (("vps", "сервер", "площад", "adminvps", "купить", "коробочк",
+          "аренд", "vds", "хостинг"), "vps"),
+        (("роутер", "keenetic", "кеенетик", "рутер", "загруз",
+          "файл", "конфиг", "архив", "zip", "прошивк"), "router"),
+        (("не работа", "не грузит", "не открыва", "падает", "тормоз",
+          "завис", "ошиб", "не получ", "не могу", "сломал", "белый экран"), "problem"),
+        (("человек", "оператор", "живой", "специалист", "админ",
+          "поддержк", "помощь", "help", "спасти"), "human"),
+        (("привет", "здравств", "добрый", "хай", "hello", "ку"), "hello"),
+        (("спасибо", "благодар", "спс", "сенкс"), "thanks"),
+        (("статус", "где мой", "мой заказ", "myorders", "обнов"), "order"),
+    ]
+
+    SUPPORT_ANSWERS = {
+        "оплата": (
+            "💳 *Оплата простыми словами:*\n\n"
+            "• Крипта (Crypto Bot): нажмите кнопку «Оплатить 500 ₽» в боте — "
+            "откроется платёж в USDT, оплачиваете картой/криптой.\n"
+            "• Звёзды: кнопка «⭐ Оплатить звёздами» — берётся из баланса Telegram "
+            "через приложение на телефоне.\n\n"
+            "Оплата разовая, 500 ₽ или 250 ⭐, за саму настройку. "
+            "Сам сервер оплачивается отдельно у провайдера (от 150 ₽/мес)."
+        ),
+        "install": (
+            "🔧 *Установка Xray — что делать:*\n\n"
+            "Вариант А (ничего не делаете вы): после оплаты жмите "
+            "«🔑 Авто-установка по SSH» и пришлите боту пароль от сервера. "
+            "Бот сам всё поставит. Если нужно включить вход по паролю на сервере — "
+            "бот пришлёт точные команды, просто скопируйте их.\n"
+            "Вариант Б (сами): кнопка «🧰 Сам запущу скрипт» → скачиваете "
+            "`setup_vps.sh`, запускаете на сервере и присылаете сюда блок вывода.\n\n"
+            "Подробнее: /guide"
+        ),
+        "ip": (
+            "🌐 *Где взять IP-адрес сервера:*\n"
+            "После покупки сервера провайдер присылает письмо с адресом вида "
+            "`123.45.67.89`. Его же видно в кабинете провайдера (раздел «Мои серверы»). "
+            "Это 4 числа через точки. Пришлите его боту — и продолжайте /buy.\n\n"
+            "Сервера ещё нет? Смотрите → /vps"
+        ),
+        "vps": (
+            "📦 *Про сервер (VPS) простыми словами:*\n"
+            "Это ваша маленькая «коробочка» за границей, через которую идёт интернет. "
+            "Покупается у провайдера отдельно (от 150 ₽/мес), это не наша оплата.\n\n"
+            "Завести за 1 минуту: /vps\n"
+            "Почему это лучше покупного VPN: /faq"
+        ),
+        "router": (
+            "🎛 *Как загрузить настройки в роутер:*\n"
+            "После установки бот пришлёт ZIP-архив. Загружаете его в роутер "
+            "(или импортируете конфиг) — и всё работает у всей семьи.\n\n"
+            "Поддерживаемые устройства: Keenetic, ASUS, OpenWrt, Xiaomi, TP-Link, "
+            "Android, iPhone, ПК. Полный список и инструкция: /guide\n\n"
+            "Не нашли ваш роутер? Напишите «не мой роутер» — подберём вариант."
+        ),
+        "problem": (
+            "🛠 *Не работает? Действуем по шагам:*\n"
+            "1. Проверьте, что сервер оплачен (у провайдера) и запущен.\n"
+            "2. Перезагрузите роутер / приложение.\n"
+            "3. Не помогло? Обновим маскировку: /myorders → «Обновить существующий заказ».\n\n"
+            "Если и после этого не работает — жмите «человек/специалист», "
+            "передам ваш вопрос человеку."
+        ),
+        "human": (
+            "👨‍💻 *Передаю ваш вопрос человеку.*\n"
+            "Сейчас наберёт поддержка @beliy_obhodchik_support. "
+            "Опишите, пожалуйста, что случилось, и приложите скриншот, если есть."
+        ),
+        "hello": (
+            "👋 Здравствуйте! Я помогу навести порядок с интернетом. "
+            "Начнём? Нажмите /buy или задайте вопрос своими словами."
+        ),
+        "thanks": (
+            "😊 Пожалуйста! Если что-то ещё понадобится — я здесь: /support"
+        ),
+        "order": (
+            "🗂 *Ваши заказы:*\n"
+            "Команда /myorders покажет список. Там же — кнопка "
+            "«Обновить существующий заказ», если что-то перестало работать."
+        ),
+    }
+
+    def _support_auto_answer(self, text: str):
+        """Возвращает ответ на типовой вопрос или None, если вопрос не понят."""
+        tl = (text or "").lower()
+        for keywords, topic in self.SUPPORT_RULES:
+            if any(kw in tl for kw in keywords):
+                return self.SUPPORT_ANSWERS[topic]
+        return None
+
+    def _forward_to_owner(self, message) -> bool:
+        """Пересылает вопрос владельцам. Возвращает True, если уведомили хоть одного."""
+        if not ADMIN_USER_IDS:
+            return False
+        forwarded = False
+        for admin_id in ADMIN_USER_IDS:
+            try:
+                fwd = self.bot.forward_message(
+                    admin_id,
+                    from_chat_id=message.chat.id,
+                    message_id=message.message_id,
+                )
+                self.support_forwards[fwd.message_id] = (message.from_user.id, message.chat.id)
+                forwarded = True
+            except Exception as e:
+                logger.error("Не удалось переслать вопрос владельцу %s: %s", admin_id, e)
+        return forwarded
+
+    def _reply_from_owner(self, message) -> bool:
+        """Если владелец ответил на пересланное сообщение — доставляем текст пользователю."""
+        reply = getattr(message, "reply_to_message", None)
+        if not reply or message.from_user.id not in ADMIN_USER_IDS:
+            return False
+        ticket = self.support_forwards.get(reply.message_id)
+        if not ticket:
+            return False
+        user_id, chat_id = ticket
+        try:
+            self.bot.send_message(chat_id, f"📩 *Ответ поддержки:*\n{message.text}")
+            self.bot.send_message(message.chat.id, f"✉️ Ответ отправлен пользователю {user_id}.")
+            return True
+        except Exception as e:
+            logger.error("Не удалось доставить ответ пользователю %s: %s", user_id, e)
+            self.bot.send_message(message.chat.id, f"❌ Не удалось доставить ответ (id {user_id}).")
+            return True
 
     def register_handlers(self):
         """Регистрация обработчиков команд"""
@@ -1118,6 +1254,68 @@ class AutoConfigBot:
             
             self.bot.send_message(message.chat.id, status_text, parse_mode='Markdown')
         
+        @self.bot.message_handler(commands=['support'])
+        def send_support(message):
+            if not self._guard_message(message):
+                return
+            user_id = message.from_user.id
+            if self._antiflood(user_id, COMMAND_COOLDOWN):
+                self._notify_slow(message.chat.id, user_id)
+                return
+            self.user_states[user_id] = "support"
+            self.bot.send_message(
+                message.chat.id,
+                "🎧 *Поддержка*\n\n"
+                "Опишите проблему своими словами — я отвечу на типовые вопросы сам, "
+                "а если не справлюсь, передам ваш вопрос человеку.\n\n"
+                "Например:\n"
+                "• «Как оплатить?»\n"
+                "• «Перестал работать Ютуб»\n"
+                "• «Где взять IP сервера?»\n\n"
+                "Чтобы закрыть чат, отправьте: /exit",
+                parse_mode='Markdown'
+            )
+
+        @self.bot.message_handler(commands=['exit'])
+        def exit_support(message):
+            if not self._guard_message(message):
+                return
+            user_id = message.from_user.id
+            if self.user_states.get(user_id) == "support":
+                self.user_states[user_id] = None
+                self.bot.send_message(message.chat.id, "👌 Чат поддержки закрыт. Если что — снова пишите /support")
+            else:
+                self.bot.send_message(message.chat.id, "🙂 Вы сейчас не в чате поддержки. Начать: /support")
+
+        @self.bot.message_handler(func=lambda m: m.text and not m.text.startswith('/'))
+        def handle_support_message(message):
+            if not self._guard_message(message):
+                return
+            user_id = message.from_user.id
+            # Ответы владельца на пересланные сообщения
+            if self._reply_from_owner(message):
+                return
+            # Перехват только в режиме поддержки
+            if self.user_states.get(user_id) != "support":
+                return
+            if self._antiflood(user_id, COMMAND_COOLDOWN):
+                self._notify_slow(message.chat.id, user_id)
+                return
+
+            answer = self._support_auto_answer(message.text)
+            if answer:
+                self.bot.send_message(message.chat.id, answer, parse_mode='Markdown')
+                return
+
+            # Непонятный вопрос → человеку
+            sent = self._forward_to_owner(message)
+            message_text = (
+                "🧑‍💻 Вопрос сложный — я передал его человеку. "
+                "Ответ придёт сюда в этот чат." if sent else
+                "😕 Я пока учусь. Обратитесь к человеку: @beliy_obhodchik_support"
+            )
+            self.bot.send_message(message.chat.id, message_text)
+
         @self.bot.message_handler(commands=['test'])
         def test_generation(message):
             """Тестовая команда для генерации конфига"""
