@@ -279,6 +279,26 @@ class PaymentSystem:
             ).fetchone()
             return dict(row) if row else None
 
+    def get_order(self, order_id: str) -> Optional[dict]:
+        """Получение одного заказа по order_id."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM orders WHERE order_id = ?", (order_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def update_vps_setup_sni(self, user_id: int, sni_hostname: str,
+                             sni_ip: Optional[str] = None) -> bool:
+        """Смена SNI-донора в сохранённой установке (ключи VPS не меняются)."""
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.execute(
+                "UPDATE vps_setups SET sni_hostname = ?, sni_ip = ? WHERE user_id = ?",
+                (sni_hostname, sni_ip, user_id),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+
     def create_invoice_record(self, invoice_id: str, payment_id: str, user_id: int,
                               chat_id: int, server_ip: Optional[str],
                               sni_hostname: Optional[str], pay_url: str):
@@ -863,34 +883,58 @@ class AutoConfigBot:
             
             elif call.data.startswith("update_"):
                 order_id = call.data.replace("update_", "")
-                
-                # Получаем новый SNI-донор
+                order = self.payment_system.get_order(order_id)
+                if not order:
+                    self.bot.send_message(call.message.chat.id, "❌ Заказ не найден. Наберите /myorders.")
+                    return
+                setup = self.payment_system.get_vps_setup(user_id)
+                if not setup:
+                    # Установка ещё не выполнена — отправляем прямиком к выбору способа
+                    self.user_data.setdefault(user_id, {})
+                    self.user_data[user_id].setdefault('server_ip', order.get('server_ip'))
+                    self.user_data[user_id].setdefault('sni_hostname', order.get('sni_hostname'))
+                    self.user_data[user_id]['payment_id'] = order.get('payment_id')
+                    self._offer_install_choice(user_id, call.message.chat.id)
+                    return
+
                 donor = self.sni_db.get_best_donor()
-                
-                if donor:
-                    # В реальной системе здесь обновляем конфиг в БД
-                    # и отправляем пользователю новый конфиг
-                    
-                    update_info = f"""
-🔄 *Обновление заказа {order_id[:8]}...*
+                if not donor:
+                    self.bot.send_message(call.message.chat.id, "❌ Не удалось найти новый SNI-донор. Попробуйте позже.")
+                    return
 
-Найден новый SNI-донор:
-• Маскировка: `{donor['hostname']}`
-• Успешность: {donor['success_rate']:.0%}
-• Страна: {donor['country_code']}
-
-Система автоматически обновила конфигурацию.
-                    """
-                    
+                # Смена донора в установке (ключи VPS не меняются), затем реальная доставка
+                self.payment_system.update_vps_setup_sni(user_id, donor['hostname'], donor['ip_address'])
+                self.user_data[user_id] = {
+                    'payment_id': order.get('payment_id'),
+                    'user_id': user_id,
+                    'chat_id': call.message.chat.id,
+                    'server_ip': setup['server_ip'],
+                    'sni_hostname': donor['hostname'],
+                    'sni_ip': donor['ip_address'],
+                }
+                self.bot.send_message(
+                    call.message.chat.id,
+                    f"🔄 Обновляю конфиг на новый SNI-донор: `{donor['hostname']}` "
+                    f"(успешность {donor['success_rate']:.0%})...",
+                    parse_mode='Markdown',
+                )
+                ok = self.generate_and_send_config(
+                    user_id, call.message.chat.id, data=self.user_data[user_id]
+                )
+                if ok:
                     self.bot.send_message(
                         call.message.chat.id,
-                        update_info,
-                        parse_mode='Markdown'
+                        f"✅ *Конфиг обновлён и отправлен!*\n\n"
+                        f"• Новый донор: `{donor['hostname']}`\n"
+                        f"• Страна: {donor['country_code']}\n"
+                        f"• Успешность: {donor['success_rate']:.0%}\n\n"
+                        f"Загрузите новый архив в роутер Keenetic (вместо старого).",
+                        parse_mode='Markdown',
                     )
                 else:
                     self.bot.send_message(
                         call.message.chat.id,
-                        "❌ Не удалось найти новый SNI-донор. Попробуйте позже."
+                        "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support",
                     )
             
             elif call.data == "create_new":
@@ -932,15 +976,31 @@ class AutoConfigBot:
             
             self.bot.send_message(message.chat.id, response, parse_mode='Markdown')
         
-        @self.bot.message_handler(commands=['status'])
-        def system_status(message):
+        @self.bot.message_handler(commands=['guide', 'instructions', 'howto'])
+        def send_guide(message):
             if not self._guard_message(message):
                 return
             user_id = message.from_user.id
             if self._antiflood(user_id, COMMAND_COOLDOWN):
                 self._notify_slow(message.chat.id, user_id)
                 return
-            stats = self.sni_db.get_stats()
+            guide_text = """
+📖 *Краткая инструкция — БелыйОбходчик*
+
+1. `/buy` — начать
+2. Указать IP VPS
+3. Оплатить (500 ₽ или {stars} ⭐)
+4. Выбрать способ установки:
+   • *Авто-SSH*: прислать пароль `root` (бот сам поставит Xray)
+   • *Сам*: скачать `setup_vps.sh`, запустить, прислать блок вывода
+
+После установки бот пришлёт ZIP-конфиг для Keenetic.
+
+Подробная инструкция: см. [INSTRUCTIONS.md](https://github.com/camce6e-wq/beliy-obhodchik/blob/main/INSTRUCTIONS.md)
+
+Нужна помощь? @beliy_obhodchik_support
+            """.format(stars=STARS_PRICE)
+            self.bot.send_message(message.chat.id, guide_text, parse_mode='Markdown', disable_web_page_preview=True)
             
             status_text = f"""
 📊 *Статус системы:*
@@ -1025,6 +1085,10 @@ class AutoConfigBot:
                 orders_total = one("SELECT COUNT(*) FROM orders")
                 users_total = one("SELECT COUNT(DISTINCT user_id) FROM payments")
                 invoices_active = one("SELECT COUNT(*) FROM invoices WHERE status='active'")
+                setups_total = one("SELECT COUNT(*) FROM vps_setups")
+                revenue_rub = one("SELECT COUNT(*) FROM payments WHERE status='paid'") * 500
+                stars_paid = one("SELECT COUNT(*) FROM payments WHERE status='paid'")  # заглушка
+                revenue_stars = one("SELECT COUNT(*) FROM orders WHERE delivered_at IS NOT NULL") * STARS_PRICE
                 conn.close()
             except Exception as e:
                 logger.error("Ошибка /stats: %s", e)
@@ -1039,6 +1103,9 @@ class AutoConfigBot:
                 f"⏳ Ожидают оплату: {payments_pending}\n"
                 f"📦 Заказов: {orders_total}\n"
                 f"🧾 Активных счетов: {invoices_active}\n"
+                f"🖥 Установок VPS выполнено: {setups_total}\n"
+                f"💳 Выручка (crypto): {revenue_rub} ₽\n"
+                f"⭐ Выручка (звёзды): ~{revenue_stars} ⭐\n"
             )
             self.bot.send_message(message.chat.id, text, parse_mode='Markdown')
         
