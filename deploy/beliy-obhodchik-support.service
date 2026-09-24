@@ -1,0 +1,21 @@
+[Unit]
+Description=Beliy Obhodchik Support Bot
+Documentation=https://github.com/camce6e-wq/beliy-obhodchik
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=beliy
+Group=beliy
+WorkingDirectory=/opt/beliy-obhodchik
+EnvironmentFile=/opt/beliy-obhodchik/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/beliy-obhodchik/venv/bin/python /opt/beliy-obhodchik/support_bot.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/beliy-obhodchik/support_bot.log
+StandardError=append:/var/log/beliy-obhodchik/support_bot.log
+
+[Install]
+WantedBy=multi-user.target

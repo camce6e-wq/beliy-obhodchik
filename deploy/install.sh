@@ -100,12 +100,23 @@ install -m 644 deploy/${SERVICE_NAME}.service /etc/systemd/system/${SERVICE_NAME
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME" >/dev/null 2>&1 || true
 
+# --- Бот поддержки (опционально) ---
+if grep -qs "^SUPPORT_BOT_TOKEN=." .env; then
+    log "Установка systemd-сервиса бота поддержки"
+    install -m 644 deploy/beliy-obhodchik-support.service /etc/systemd/system/beliy-obhodchik-support.service
+    systemctl daemon-reload
+    systemctl enable beliy-obhodchik-support >/dev/null 2>&1 || true
+fi
+
 if grep -q "ваш_токен" .env 2>/dev/null; then
     err "В .env остались плейсхолдеры — заполните токены и выполните: systemctl restart $SERVICE_NAME"
     exit 0
 fi
 
 systemctl restart "$SERVICE_NAME"
+if [ -f /etc/systemd/system/beliy-obhodchik-support.service ]; then
+    systemctl restart beliy-obhodchik-support
+fi
 sleep 3
 systemctl --no-pager --full status "$SERVICE_NAME" | head -n 15 || true
 

@@ -21,5 +21,9 @@ echo "==> pip install"
 
 echo "==> restart $SERVICE_NAME"
 systemctl restart "$SERVICE_NAME"
+if [ -f /etc/systemd/system/beliy-obhodchik-support.service ]; then
+    echo "==> restart beliy-obhodchik-support"
+    systemctl restart beliy-obhodchik-support
+fi
 sleep 3
 systemctl --no-pager --full status "$SERVICE_NAME" | head -n 15 || true
