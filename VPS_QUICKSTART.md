@@ -32,4 +32,4 @@
 Всё готово. Дальше бот сам подключится, настроит сервер и пришлёт готовые
 настройки для вашего роутера. Никаких терминалов и команд вам не нужно.
 
-Не нашли ответ? Поддержка: [@beliy_obhodchik_support](https://t.me/beliy_obhodchik_support)
+Не нашли ответ? Поддержка: [@beliy_obhodchik_support_bot](https://t.me/beliy_obhodchik_support_bot)

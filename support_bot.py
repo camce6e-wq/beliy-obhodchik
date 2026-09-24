@@ -2,7 +2,7 @@
 """
 Отдельный Telegram-бот поддержки «БелыйОбходчик».
 
-Зачем: в боте и на сайте везде указан @beliy_obhodchik_support, но без
+Зачем: в боте и на сайте везде указан @beliy_obhodchik_support_bot, но без
 отдельного бота эта ссылка никуда не ведёт. Этот бот закрывает поддержку:
 пользователь пишет ему напрямую — типовые вопросы отвечает сам, сложные
 пересылает владельцам (ADMIN_USER_IDS). Ответ владельца на пересланное
@@ -10,7 +10,7 @@
 
 Как создать бота (один раз, вручную):
   1. В Telegram откройте @BotFather -> /newbot
-  2. Название: «БелыйОбходчик — поддержка», юзернейм: beliy_obhodchik_support
+  2. Название: «БелыйОбходчик — поддержка», юзернейм: beliy_obhodchik_support_bot
   3. BotFather выдаст токен вида 123456:ABC...
   4. Впишите его в .env как:
        SUPPORT_BOT_TOKEN=123456:ABC...
@@ -128,7 +128,7 @@ class SupportBot:
                 self.bot.send_message(
                     message.chat.id,
                     "ℹ️ Поддержка работает только в личных сообщениях.\n"
-                    "Напишите мне: @beliy_obhodchik_support",
+                    "Напишите мне: @beliy_obhodchik_support_bot",
                 )
             except Exception:
                 pass
@@ -283,7 +283,7 @@ def main():
         print("Создайте бота поддержки в @BotFather:")
         print("  1. Откройте @BotFather -> /newbot")
         print("  2. Название: «БелыйОбходчик — поддержка»")
-        print("  3. Юзернейм: beliy_obhodchik_support")
+        print("  3. Юзернейм: beliy_obhodchik_support_bot")
         print("  4. Скопируйте токен в .env:")
         print("       SUPPORT_BOT_TOKEN=123456:ABC...")
         print("Затем запустите снова.")

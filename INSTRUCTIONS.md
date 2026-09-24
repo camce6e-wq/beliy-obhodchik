@@ -94,4 +94,4 @@
 
 ## Поддержка
 
-- По вопросам и проблемам: [@beliy_obhodchik_support](https://t.me/beliy_obhodchik_support)
+- По вопросам и проблемам: [@beliy_obhodchik_support_bot](https://t.me/beliy_obhodchik_support_bot)

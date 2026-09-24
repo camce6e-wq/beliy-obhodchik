@@ -69,9 +69,9 @@ CRYPTOPAY_TOKEN=токен_приложения_Crypto_Pay
 
 ### Шаг 3.1: Бот поддержки (опционально)
 
-На сайта и в ответах бота встречается `@beliy_obhodchik_support` — чтобы эта
+На сайта и в ответах бота встречается `@beliy_obhodchik_support_bot` — чтобы эта
 ссылка вела на живой бот, создайте его в @BotFather (юзернейм
-`beliy_obhodchik_support`), впишите токен в `.env` (`SUPPORT_BOT_TOKEN`) и
+`beliy_obhodchik_support_bot`), впишите токен в `.env` (`SUPPORT_BOT_TOKEN`) и
 запустите `run_support_bot.bat` (или сервис `beliy-obhodchik-support.service`).
 Вопросы, на которые бот не ответил сам, уходят владельцам из `ADMIN_USER_IDS`;
 ответ владельца на пересланное сообщение доставляется пользователю.

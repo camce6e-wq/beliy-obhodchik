@@ -671,7 +671,7 @@ class AutoConfigBot:
         ),
         "human": (
             "👨‍💻 *Передаю ваш вопрос человеку.*\n"
-            "Сейчас наберёт поддержка @beliy_obhodchik_support. "
+            "Сейчас наберёт поддержка @beliy_obhodchik_support_bot. "
             "Опишите, пожалуйста, что случилось, и приложите скриншот, если есть."
         ),
         "hello": (
@@ -784,7 +784,7 @@ class AutoConfigBot:
         if not os.path.exists(script_path):
             self.bot.send_message(
                 chat_id,
-                "❌ Скрипт setup_nfqws.sh не найден на сервере бота. Напишите поддержку: @beliy_obhodchik_support",
+                "❌ Скрипт setup_nfqws.sh не найден на сервере бота. Напишите поддержку: @beliy_obhodchik_support_bot",
                 reply_markup=self._main_menu_inline_keyboard()
             )
             return False
@@ -822,7 +822,7 @@ class AutoConfigBot:
             return True
         except Exception as e:
             logger.error("Ошибка доставки настройки NFQWS: %s", e)
-            self.bot.send_message(chat_id, "❌ Не удалось отправить файл. Напишите поддержку: @beliy_obhodchik_support", reply_markup=self._main_menu_inline_keyboard())
+            self.bot.send_message(chat_id, "❌ Не удалось отправить файл. Напишите поддержку: @beliy_obhodchik_support_bot", reply_markup=self._main_menu_inline_keyboard())
             return False
 
     def _forward_to_owner(self, message) -> bool:
@@ -1142,7 +1142,7 @@ class AutoConfigBot:
                 if not self.crypto_pay:
                     self.bot.send_message(
                         call.message.chat.id,
-                        "⚠️ Оплата временно недоступна. Обратитесь в поддержку: @beliy_obhodchik_support",
+                        "⚠️ Оплата временно недоступна. Обратитесь в поддержку: @beliy_obhodchik_support_bot",
                         reply_markup=self._main_menu_inline_keyboard(),
                     )
                     return
@@ -1189,7 +1189,7 @@ class AutoConfigBot:
                     logger.error("Ошибка создания DPI-счёта: %s", e)
                     self.bot.send_message(
                         call.message.chat.id,
-                        "❌ Не удалось создать счёт. Попробуйте позже или напишите в поддержку: @beliy_obhodchik_support\n(" + str(e)[:120] + ")",
+                        "❌ Не удалось создать счёт. Попробуйте позже или напишите в поддержку: @beliy_obhodchik_support_bot\n(" + str(e)[:120] + ")",
                         reply_markup=self._main_menu_inline_keyboard(),
                     )
 
@@ -1230,7 +1230,7 @@ class AutoConfigBot:
                 if not self.crypto_pay:
                     self.bot.send_message(
                         call.message.chat.id,
-                        "⚠️ Оплата временно недоступна. Обратитесь в поддержку: @beliy_obhodchik_support",
+                        "⚠️ Оплата временно недоступна. Обратитесь в поддержку: @beliy_obhodchik_support_bot",
                         reply_markup=self._main_menu_inline_keyboard(),
                     )
                     return
@@ -1287,7 +1287,7 @@ class AutoConfigBot:
                     logger.error("Ошибка создания счёта: %s", e)
                     self.bot.send_message(
                         call.message.chat.id,
-                        f"❌ Не удалось создать счёт. Попробуйте позже или напишите в поддержку: @beliy_obhodchik_support\n({str(e)[:120]})",
+                        f"❌ Не удалось создать счёт. Попробуйте позже или напишите в поддержку: @beliy_obhodchik_support_bot\n({str(e)[:120]})",
                         reply_markup=self._main_menu_inline_keyboard(),
                     )
                 
@@ -1457,7 +1457,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
                 else:
                     self.bot.send_message(
                         call.message.chat.id,
-                        "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support",
+                        "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support_bot",
                         reply_markup=self._main_menu_inline_keyboard(),
                     )
             
@@ -1599,7 +1599,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
 
 *Я все равно боюсь/не понимаю, как платить. Поможете?*
 Да! Пошаговая простая инструкция → /vps.
-Если застряли в любой момент — пишите поддержке: @beliy_obhodchik_support
+Если застряли в любой момент — пишите поддержке: @beliy_obhodchik_support_bot
 
 *Что, если мой интернет-провайдер заблокирует связь с этим сервером?*
 Мы используем маскировку Reality — со стороны провайдер видит обычный
@@ -1636,7 +1636,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
 
 Подробная инструкция: см. [INSTRUCTIONS.md](https://github.com/camce6e-wq/beliy-obhodchik/blob/main/INSTRUCTIONS.md)
 
-Нужна помощь? Напишите: /support (вопрос уйдёт человеку) или поддержке @beliy_obhodchik_support
+Нужна помощь? Напишите: /support (вопрос уйдёт человеку) или поддержке @beliy_obhodchik_support_bot
             """.format(
                 stars=STARS_PRICE,
                 devices="\n".join(f"• {d}" for d in SUPPORTED_DEVICES),
@@ -1743,7 +1743,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
             message_text = (
                 "🧑‍💻 Вопрос сложный — я передал его человеку. "
                 "Ответ придёт сюда в этот чат." if sent else
-                "😕 Я пока учусь. Обратитесь к человеку: @beliy_obhodchik_support"
+                "😕 Я пока учусь. Обратитесь к человеку: @beliy_obhodchik_support_bot"
             )
             self.bot.send_message(message.chat.id, message_text)
 
@@ -1853,7 +1853,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
                     self.bot.send_message(
                         message.chat.id,
                         "⚠️ Сумма оплаты не совпадает с ценой настройки. "
-                        "Напишите в поддержку: @beliy_obhodchik_support",
+                        "Напишите в поддержку: @beliy_obhodchik_support_bot",
                         reply_markup=self._main_menu_inline_keyboard()
                     )
                     return
@@ -1865,7 +1865,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
             if ud.get('payment_id') != payload:
                 self.bot.send_message(
                     message.chat.id,
-                    f"✅ Оплата {stars} ⭐ получена! Обратитесь к поддержке: @beliy_obhodchik_support",
+                    f"✅ Оплата {stars} ⭐ получена! Обратитесь к поддержке: @beliy_obhodchik_support_bot",
                     reply_markup=self._main_menu_inline_keyboard()
                 )
                 return
@@ -1884,14 +1884,14 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
                     else:
                         self.bot.send_message(
                             message.chat.id,
-                            "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support",
+                            "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support_bot",
                             reply_markup=self._main_menu_inline_keyboard()
                         )
             except Exception as e:
                 logger.error("Ошибка доставки после оплаты звёздами: %s", e)
                 self.bot.send_message(
                     message.chat.id,
-                    "❌ Произошла ошибка. Платеж получен, напишите в поддержку: @beliy_obhodchik_support",
+                    "❌ Произошла ошибка. Платеж получен, напишите в поддержку: @beliy_obhodchik_support_bot",
                     reply_markup=self._main_menu_inline_keyboard()
                 )
 
@@ -1998,7 +1998,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
 
 💡 *Помощь:*
 • Инструкция в архиве
-• Поддержка: @beliy_obhodchik_support
+• Поддержка: @beliy_obhodchik_support_bot
 • Вопросы: /faq
 
 🔄 *Автообновления:*
