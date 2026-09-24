@@ -152,5 +152,18 @@ ok = bot.generate_and_send_config(USER, CHAT, data={
 assert ok, "не удалось сгенерировать конфиг после установки ключей"
 assert len(sent_docs) == 1, "конфиг не отправлен после установки"
 
-print("OK 3/3: оплата звёздами подтверждена, кнопки установки показаны, после ключей конфиг доставлен")
+
+def _has_menu_buttons():
+    return any(
+        m and any(
+            b.to_dict().get("callback_data") == "cmd_support"
+            for row2 in m.keyboard
+            for b in row2
+        )
+        for m in sent_markups
+    )
+
+
+assert _has_menu_buttons(), "после доставки конфига не показано стартовое меню"
+print("OK 3/3: оплата звёздами подтверждена, кнопки установки показаны, после ключей конфиг доставлен + меню")
 print("\nВСЕ ТЕСТЫ ПРОЙДЕНЫ")

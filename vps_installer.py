@@ -8,10 +8,9 @@ import os
 import sys
 import json
 import random
-import string
 import subprocess
 import logging
-from typing import Dict, Optional
+from typing import Dict
 import urllib.request
 import base64
 

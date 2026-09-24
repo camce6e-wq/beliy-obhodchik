@@ -5,13 +5,11 @@
 """
 
 import sqlite3
-import json
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 import random
-import requests
 import socket
 import ssl
 import ipaddress

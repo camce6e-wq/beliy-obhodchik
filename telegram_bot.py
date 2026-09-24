@@ -6,16 +6,14 @@ Telegram-бот для автоматической продажи конфиг�
 
 import os
 import sys
-import json
 import time
 import logging
 import hashlib
 import uuid
 import threading
 from datetime import datetime
-from typing import Dict, Optional, Tuple, Any
+from typing import Optional, Any
 import sqlite3
-import base64
 import secrets
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -39,7 +37,6 @@ except ImportError:
 # Импортируем наши модули
 from sni_manager import SNIDatabase, SNIScanner
 from keenetic_config_generator import KeeneticConfigGenerator, quick_generate
-from vps_installer import VPSInstaller
 
 # SSH-установка VPS (paramiko)
 try:
@@ -54,8 +51,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+def _load_dotenv(path: str = ".env") -> None:
+    """Мини-загрузчик .env без внешних зависимостей.
+    Не перезаписывает уже заданные переменные (нужно для systemd EnvironmentFile)."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith(("#", ";")) or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+    except (FileNotFoundError, PermissionError):
+        pass
+    except OSError as e:
+        print(f"Не удалось прочитать {path}: {e}", file=sys.stderr)
+
+
+_load_dotenv()
+
 # Токены берём из окружения (.env). Плейсхолдер ниже — НЕ настоящий секрет,
-# он нужен только для офлайн-тестов; продакшен работает через run_prod_bot.bat.
+# он нужен только для офлайн-тестов; продакшен берёт токены из .env
+# (автоматически при запуске, или через bat/systemd).
 TELEGRAM_BOT_TOKEN = os.environ.get(
     'TELEGRAM_BOT_TOKEN',
     "0000000000:AA0000000000000000000000000000000000"
@@ -138,17 +159,23 @@ SUPPORTED_ROUTER_MODELS = [
 PROMO_CODE = "BELOBH"
 
 # Оплата звёздами Telegram: цена в звёздах за настройку.
-# ~250⭐: покупателю ~450-650₽ (в зависимости от канала), боту на вывод ~$3.25.
-STARS_PRICE = 250
+STARS_PRICE = 750
 
-# ===== Защита бота от спама и злоупотреблений =====
-# Администраторы (id через запятую): ADMIN_USER_IDS=6002841224,...
-ADMIN_USER_IDS = set(
-    int(x.strip()) for x in os.environ.get('ADMIN_USER_IDS', '').split(',') if x.strip().isdigit()
-)
-# Пауза между командами/кликами одного пользователя (секунды)
-COMMAND_COOLDOWN = float(os.environ.get('COMMAND_COOLDOWN', '2'))
+# VPS-настройка: цена в рублях через Crypto Bot.
+VPS_RUB_PRICE = 1500
+
+# ===== Услуга «Без сервера» (NFQWS / Zapret / ByeDPI) =====
+# Обход замедления и блокировок Ютуба, Дискорда, Инстаграма, ТикТока, Твиттера,
+# многих сайтов — прямо на роутере/ПК/телефоне, БЕЗ покупки VPS-сервера.
+# Важно: NFQWS/Zapret убирает блокировки, сделанные на уровне DPI (замедление/
+# блокировка по SNI и сигнатуре). Если провайдер режет по IP-подсетям целиком —
+# там уже нужен свой сервер (VPS). Мы честно это объясняем пользователю.
+DPI_RUB_PRICE = 1000  # Через Crypto Bot
+DPI_STARS_PRICE = 500 # Через звёзды Telegram (дешевле, т.к. сервера нет)
 CALLBACK_COOLDOWN = float(os.environ.get('CALLBACK_COOLDOWN', '2'))
+COMMAND_COOLDOWN = float(os.environ.get('COMMAND_COOLDOWN', '2'))
+# ID админов/владельцев через запятую: ADMIN_USER_IDS=111,222,333
+ADMIN_USER_IDS = [int(x) for x in os.environ.get('ADMIN_USER_IDS', '').split(',') if x.strip()]
 # Максимум активных (неоплаченных) счетов на одного пользователя
 MAX_PENDING_PER_USER = int(os.environ.get('MAX_PENDING_PER_USER', '1'))
 
@@ -172,6 +199,9 @@ if DPI_WORKAROUND:
 
 # Значение getUpdates(timeout=...). При DPI-костыле 0 (короткие опросы), иначе 20.
 LONG_POLLING_TIMEOUT = int(os.environ.get('LONG_POLLING_TIMEOUT', '0' if DPI_WORKAROUND else '20'))
+
+# Фоновый пересмотр здоровья SNI-доноров (секунды). 0 -> выключено.
+SNI_CHECK_INTERVAL = int(os.environ.get('SNI_CHECK_INTERVAL', '3600'))
 
 class PaymentSystem:
     """Класс для обработки платежей (упрощённая версия)"""
@@ -243,9 +273,11 @@ class PaymentSystem:
             
             conn.commit()
     
-    def create_payment(self, user_id: int, username: str, amount: int = 500) -> str:
+    def create_payment(self, user_id: int, username: str, amount: int = VPS_RUB_PRICE,
+                       payment_id: Optional[str] = None) -> str:
         """Создание нового платежа"""
-        payment_id = f"pay_{hashlib.md5(f'{user_id}{datetime.now()}{secrets.token_hex(4)}'.encode()).hexdigest()[:16]}"
+        if payment_id is None:
+            payment_id = f"pay_{hashlib.md5(f'{user_id}{datetime.now()}{secrets.token_hex(4)}'.encode()).hexdigest()[:16]}"
         
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -415,7 +447,7 @@ class CryptoPayClient:
             raise RuntimeError(str(j.get('error', j))[:300])
         return j.get('result')
 
-    def create_invoice(self, amount_rub: int = 500, payload: str = "",
+    def create_invoice(self, amount_rub: int = VPS_RUB_PRICE, payload: str = "",
                        description: str = None) -> dict:
         """Счёт на фиксированную сумму в рублях (конвертируется в USDT)."""
         return self._post('createInvoice', {
@@ -436,6 +468,17 @@ class CryptoPayClient:
         if isinstance(res, dict):
             return res.get('items') or []
         return res or []
+
+
+class _CallbackMessage:
+    """Лёгкий адаптер callback-нажатия под вид message.
+    Позволяет inline-кнопкам главного меню переиспользовать функции-обработчики команд
+    (buy/dpi/router/vps/guide/faq/support/myorders), которые ожидают message."""
+
+    def __init__(self, call):
+        self.chat = getattr(call.message, 'chat', None)
+        self.from_user = call.from_user
+        self.text = (call.data or "")
 
 
 class AutoConfigBot:
@@ -577,11 +620,11 @@ class AutoConfigBot:
     SUPPORT_ANSWERS = {
         "оплата": (
             "💳 *Оплата простыми словами:*\n\n"
-            "• Крипта (Crypto Bot): нажмите кнопку «Оплатить 500 ₽» в боте — "
+            "• Крипта (Crypto Bot): нажмите кнопку «Оплатить 1500 ₽» в боте — "
             "откроется платёж в USDT, оплачиваете картой/криптой.\n"
             "• Звёзды: кнопка «⭐ Оплатить звёздами» — берётся из баланса Telegram "
             "через приложение на телефоне.\n\n"
-            "Оплата разовая, 500 ₽ или 250 ⭐, за саму настройку. "
+            "Оплата разовая, 1500 ₽ или 750 ⭐, за саму настройку. "
             "Сам сервер оплачивается отдельно у провайдера (от 150 ₽/мес)."
         ),
         "install": (
@@ -682,15 +725,105 @@ class AutoConfigBot:
                 return self.SUPPORT_ANSWERS[topic]
         return None
 
-    def _main_menu_keyboard(self) -> 'types.ReplyKeyboardMarkup':
-        """Постоянная клавиатура со всеми командами (кнопки отправляют готовые команды).
-        Меню остаётся внизу чата навсегда, пока пользователь сам не скроет его."""
-        kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2, is_persistent=True)
-        kb.add(types.KeyboardButton("🛒 /buy"), types.KeyboardButton("🎛 /router"))
-        kb.add(types.KeyboardButton("🖥 /vps"), types.KeyboardButton("📖 /guide"))
-        kb.add(types.KeyboardButton("❓ /faq"), types.KeyboardButton("🎧 /support"))
-        kb.add(types.KeyboardButton("📦 /myorders"), types.KeyboardButton("🚪 /exit"))
+    def _main_menu_inline_keyboard(self) -> 'types.InlineKeyboardMarkup':
+        """Главное меню: русские кнопки под текстом (вместо нижней клавиатуры и команд).
+        Кнопки шлют callback cmd_*, диспетчер вызывает те же функции, что и команды."""
+        kb = types.InlineKeyboardMarkup(row_width=2)
+        kb.add(
+            types.InlineKeyboardButton("🛒 Купить настройку", callback_data="cmd_buy"),
+            types.InlineKeyboardButton("🎛 Подобрать роутер", callback_data="cmd_router"),
+        )
+        kb.add(
+            types.InlineKeyboardButton("🎞 Обход DPI", callback_data="cmd_dpi"),
+            types.InlineKeyboardButton("🖥 Как завести сервер", callback_data="cmd_vps"),
+        )
+        kb.add(
+            types.InlineKeyboardButton("📖 Полная инструкция", callback_data="cmd_guide"),
+            types.InlineKeyboardButton("❓ Частые вопросы", callback_data="cmd_faq"),
+        )
+        kb.add(
+            types.InlineKeyboardButton("📦 Мои заказы", callback_data="cmd_myorders"),
+            types.InlineKeyboardButton("🎧 Чат поддержки", callback_data="cmd_support"),
+        )
         return kb
+
+    def _show_welcome(self, chat_id: int):
+        """Приветственное сообщение с главным меню (inline-кнопки на русском).
+        Используется из /start и после отмены заказа / выхода из режима поддержки."""
+        welcome_text = (
+            "👋 *Здравствуйте! Я — БелыйОбходчик.*\n\n"
+            "Понимаю вашу боль без технических слов:\n\n"
+            "❌ *Сейчас:* Ютуб не грузится, видео «крутится» часами, сайты не открываются, "
+            "приложения падают.\n\n"
+            "✅ *Вы хотите:* чтобы всё работало как раньше — и вы не думали, *как* это устроено.\n\n"
+            "➡️ *Что нужно от вас (один раз):*\n"
+            "1. Купить крошечный «сервер-коробочку» за границей — от 150 ₽/мес "
+            "(для сравнения: одна поездка на маршрутке). По шагам поможем — кнопка ниже.\n"
+            "2. Оплатить настройку: 1500 ₽ или 750 ⭐\n\n"
+            "➡️ *Что мы сделаем (дальше всё само):*\n"
+            "• Подключимся к вашему серверу и настроим его автоматически\n"
+            "• Соберём готовые настройки прямо для вашего роутера (Keenetic, и др.)\n"
+            "• При блокировках обновим донора сами\n"
+            "• Поддержка 30 дней\n\n"
+            "🎁 *Почему это лучше, чем «купить VPN за 200₽»:* наш сервер принадлежит *вам* — "
+            "высокая скорость, личный не забитый IP, без падений и слежки.\n\n"
+            "⬇️ *Выберите действие ниже:*"
+        )
+        self.bot.send_message(
+            chat_id,
+            welcome_text,
+            parse_mode='Markdown',
+            reply_markup=self._main_menu_inline_keyboard(),
+        )
+
+    def _deliver_dpi_setup(self, chat_id: int, user_id: int, stars: int = 0) -> bool:
+        """Услуга «Ютуб/Дискорд/Инстаграм/ТикТок Твиттер БЕЗ сервера» (Zapret/NFQWS).
+        После оплаты просто присылаем установочный скрипт + понятную инструкцию.
+        Никакой VPS, IP и SSH не нужно — роутер обходит замедления сам."""
+        script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "setup_nfqws.sh")
+        if not os.path.exists(script_path):
+            self.bot.send_message(
+                chat_id,
+                "❌ Скрипт setup_nfqws.sh не найден на сервере бота. Напишите поддержку: @beliy_obhodchik_support",
+                reply_markup=self._main_menu_inline_keyboard()
+            )
+            return False
+        try:
+            with open(script_path, 'rb') as f:
+                self.bot.send_document(
+                    chat_id, f,
+                    caption=(
+                        "🎬 *Обход Ютуба, Дискорда, Инстаграма, ТикТока, Твиттера — БЕЗ сервера* "
+                        "(Zapret / NFQWS)\n\n"
+                        "Загрузите `setup_nfqws.sh` на роутер и запустите:\n"
+                        "`sudo bash setup_nfqws.sh`\n\n"
+                        "🐧 *Где запускать:* Keenetic (Entware), OpenWrt, любой роутер с opkg/apk.\n"
+                        "🪟 *Есть только ПК?* Поставьте ByeDPI/GoodbyeDPI на Windows/macOS — "
+                        "эффект тот же, инструкцию пришлём после оплаты.\n\n"
+                        "ℹ️ *Честно:* скрипт обходит замедление/блокировку по SNI-признаку "
+                        "(обычный случай у провайдеров РФ). Если у вас блокировка по IP-подсети "
+                        "целиком — нужен свой сервер: /buy"
+                    ),
+                    parse_mode='Markdown'
+                )
+            self.bot.send_message(
+                chat_id,
+                "📖 *Дальше — по шагам (10 минут):*\n\n"
+                "1️⃣ Скачайте файл `setup_nfqws.sh` выше.\n"
+                "2️⃣ Загрузите его на роутер (через панель Keenetic/SSH или USB).\n"
+                "3️⃣ Выполните `sudo bash setup_nfqws.sh`.\n"
+                "4️⃣ Скрипт сам скачает Zapret, настроит стратегию под YouTube+Discord+"
+                "Instagram+TikTok и включит автозапуск.\n"
+                "5️⃣ Откройте Ютуб — должно работать сразу после перезагрузки страницы.\n\n"
+                "❓ Если что-то пошло не так — спросите в /support: я сам отвечу, "
+                "а сложный случай передам человеку.",
+                reply_markup=self._main_menu_inline_keyboard()
+            )
+            return True
+        except Exception as e:
+            logger.error("Ошибка доставки настройки NFQWS: %s", e)
+            self.bot.send_message(chat_id, "❌ Не удалось отправить файл. Напишите поддержку: @beliy_obhodchik_support", reply_markup=self._main_menu_inline_keyboard())
+            return False
 
     def _forward_to_owner(self, message) -> bool:
         """Пересылает вопрос владельцам. Возвращает True, если уведомили хоть одного."""
@@ -731,61 +864,67 @@ class AutoConfigBot:
     def register_handlers(self):
         """Регистрация обработчиков команд"""
         
+        # Системное меню команд (/buy, /dpi…) намеренно не регистрируем:
+        # вместо команд и их описаний используем inline-кнопки на русском
+        # (см. _main_menu_inline_keyboard в приветствии).
+        
         @self.bot.message_handler(commands=['start', 'help'])
         def send_welcome(message):
             if not self._guard_message(message):
                 return
             user_id = message.from_user.id
-            username = message.from_user.username or str(user_id)
             if self._antiflood(user_id, COMMAND_COOLDOWN):
                 self._notify_slow(message.chat.id, user_id)
                 return
-            
-            welcome_text = """
-👋 *Здравствуйте! Я — БелыйОбходчик.*
-
-Понимаю вашу боль без технических слов:
-
-❌ *Сейчас:* Ютуб не грузится, видео «крутится» часами, сайты не открываются, приложения падают.
-
-✅ *Вы хотите:* чтобы всё работало как раньше — и вы не думали, *как* это устроено.
-
-➡️ *Что нужно от вас (один раз):*
-1. Купить крошечный «сервер-коробочку» за границей — от 150 ₽/мес (для сравнения: одна поездка на маршрутке). По шагам покажем → /vps
-2. Оплатить настройку: 500 ₽ или 250 ⭐
-
-➡️ *Что мы сделаем (дальше всё само):*
-• Подключимся к вашему серверу и настроим его автоматически
-• Соберём готовые настройки прямо для вашего роутера (Keenetic, и др.)
-• При блокировках обновим донора сами
-• Поддержка 30 дней
-
-🎁 *Почему это лучше, чем «купить VPN за 200₽»:* наш сервер принадлежит *вам* — высокая скорость, личный не забитый IP, без падений и слежки. Подробно: /faq
-
-📌 *Команды:*
-/buy — начать настройку
-/router — подобрать роутер
-/vps — как завести сервер
-/faq — ответы на вопросы
-/guide — полная инструкция
-/support — чат поддержки
-
-Начать просто: нажмите → /buy
-            """
-            
-            self.bot.send_message(
-                message.chat.id,
-                welcome_text,
-                parse_mode='Markdown',
-                reply_markup=self._main_menu_keyboard(),
-            )
+            self._show_welcome(message.chat.id)
         
+        @self.bot.message_handler(commands=['dpi'])
+        def make_dpi_order(message):
+            """Услуга «Без сервера»: обход DPI на роутере/ПК — без покупки VPS."""
+            if not self._guard_message(message):
+                return
+            user_id = message.from_user.id
+            if self._antiflood(user_id, COMMAND_COOLDOWN):
+                self._notify_slow(message.chat.id, user_id)
+                return
+            payment_id = "dpi_" + hashlib.md5(
+                f"{user_id}{time.time()}{secrets.token_hex(4)}".encode()
+            ).hexdigest()[:12]
+            username = getattr(message.from_user, 'username', None) or str(user_id)
+            self.payment_system.create_payment(user_id, username, amount=DPI_RUB_PRICE, payment_id=payment_id)
+            self.user_data[user_id] = {"payment_id": payment_id}
+            self.user_states[user_id] = None
+
+            _text = (
+                "🎞 *Обход DPI без сервера*\n\n"
+                "Вернём ютуб, дискорд, инстаграм, тикток и твиттер "
+                "на роутере/ПК/телефоне — **без покупки VPS-сервера**.\n\n"
+                "Что вы получите:\n"
+                "• Скрипт `setup_nfqws.sh` — установит Entware и nfqws2 "
+                "(методика Zapret), про обход DPI-замедления\n"
+                "• Включим автозапуск на роутере\n"
+                "• Поддержка: поможем подобрать стратегию\n\n"
+                f"💰 Цена: **{DPI_RUB_PRICE} ₽** (крипто) или **{DPI_STARS_PRICE} ⭐** (звёзды)\n\n"
+                "⚠️ Честно: это обход замедления/блокировок по DPI. Если провайдер "
+                "режет по IP-подсетям целиком — нужен свой сервер: /vps"
+            )
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton(
+                f"💳 Оплатить {DPI_RUB_PRICE} ₽ (Crypto Bot)", callback_data="make_dpi_payment"
+            ))
+            markup.add(types.InlineKeyboardButton(
+                f"⭐ Оплатить {DPI_STARS_PRICE} звёздами", callback_data="pay_dpi_stars"
+            ))
+            markup.add(types.InlineKeyboardButton("❌ Отменить", callback_data="cancel_purchase"))
+            self.bot.send_message(
+                message.chat.id, _text, parse_mode="Markdown", reply_markup=markup
+            )
         @self.bot.message_handler(commands=['buy'])
         def start_purchase(message):
             if not self._guard_message(message):
                 return
             user_id = message.from_user.id
-            username = message.from_user.username or str(user_id)
+            username = getattr(message.from_user, 'username', None) or str(user_id)
             if self._antiflood(user_id, COMMAND_COOLDOWN):
                 self._notify_slow(message.chat.id, user_id)
                 return
@@ -812,6 +951,7 @@ class AutoConfigBot:
                     self.bot.send_message(
                         message.chat.id,
                         "⏳ У вас уже есть активный счёт. Оплатите его и повторите попытку.",
+                        reply_markup=self._main_menu_inline_keyboard(),
                     )
                 return
 
@@ -820,11 +960,11 @@ class AutoConfigBot:
             self.user_data[user_id] = {}
             
             # Создаём платеж
-            payment_id = self.payment_system.create_payment(user_id, username)
+            payment_id = self.payment_system.create_payment(user_id, username, amount=VPS_RUB_PRICE)
             self.user_data[user_id]['payment_id'] = payment_id
             
             instruction = f"""
-💰 *Стоимость настройки: 500 ₽ один раз* или {STARS_PRICE} ⭐
+💰 *Стоимость настройки: {VPS_RUB_PRICE} ₽ один раз* или {STARS_PRICE} ⭐
 
 Что вы получаете:
 • Готовые настройки для вашего роутера (просто загрузите файл)
@@ -880,7 +1020,8 @@ class AutoConfigBot:
             if not donor:
                 self.bot.send_message(
                     message.chat.id,
-                    "❌ Временно нет доступных SNI-доноров. Попробуйте позже."
+                    "❌ Временно нет доступных SNI-доноров. Попробуйте позже.",
+                    reply_markup=self._main_menu_inline_keyboard(),
                 )
                 self.user_states[user_id] = None
                 return
@@ -899,7 +1040,7 @@ class AutoConfigBot:
             """
             
             markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("💳 Оплатить 500 ₽ (Crypto Bot)", callback_data="make_payment"))
+            markup.add(types.InlineKeyboardButton("💳 Оплатить 1500 ₽ (Crypto Bot)", callback_data="make_payment"))
             markup.add(types.InlineKeyboardButton(f"⭐ Оплатить {STARS_PRICE} звёздами", callback_data="pay_stars"))
             markup.add(types.InlineKeyboardButton("❌ Отменить", callback_data="cancel_purchase"))
             
@@ -921,7 +1062,8 @@ class AutoConfigBot:
                 self.bot.send_message(
                     message.chat.id,
                     "❌ Не вижу блок `===BELIY-OBHODCHIK-VLESS===` ... `===END===` в сообщении.\n"
-                    "Запустите setup_vps.sh на VPS и пришлите сюда весь вывод целиком."
+                    "Запустите setup_vps.sh на VPS и пришлите сюда весь вывод целиком.",
+                    reply_markup=self._main_menu_inline_keyboard(),
                 )
                 return
             self._save_setup_and_deliver(user_id, message.chat.id, parsed,
@@ -956,21 +1098,140 @@ class AutoConfigBot:
             if not self._guard_callback(call):
                 return
             user_id = call.from_user.id
+
+            # Кнопки главного меню: cmd_* вызывают те же обработчики, что и команды.
+            # Антифлуд выполнит сам обработчик-функция — здесь пропускаем, чтобы не задвоить.
+            if (call.data or "").startswith("cmd_"):
+                action = call.data[4:]
+                handlers = {
+                    "buy": start_purchase,
+                    "dpi": make_dpi_order,
+                    "router": send_router_help,
+                    "vps": send_vps_help,
+                    "guide": send_guide,
+                    "faq": send_faq,
+                    "support": send_support,
+                    "myorders": show_orders,
+                }
+                if action == "menu":
+                    try:
+                        self.bot.answer_callback_query(call.id)
+                    except Exception:
+                        pass
+                    self._show_welcome(call.message.chat.id)
+                    return
+                handler = handlers.get(action)
+                if handler:
+                    try:
+                        self.bot.answer_callback_query(call.id)
+                    except Exception:
+                        pass
+                    fake = _CallbackMessage(call)
+                    handler(fake)
+                return
+
             if self._antiflood(user_id, CALLBACK_COOLDOWN):
                 self._notify_slow(call.message.chat.id, user_id)
                 return
             
+            if call.data == "make_dpi_payment":
+                payment_id = self.user_data.get(user_id, {}).get("payment_id")
+                if not payment_id:
+                    self._show_welcome(call.message.chat.id)
+                    return
+                if not self.crypto_pay:
+                    self.bot.send_message(
+                        call.message.chat.id,
+                        "⚠️ Оплата временно недоступна. Обратитесь в поддержку: @beliy_obhodchik_support",
+                        reply_markup=self._main_menu_inline_keyboard(),
+                    )
+                    return
+                if self._pending_over_limit(user_id):
+                    if not self._resume_pending(call.message.chat.id, user_id):
+                        self.bot.send_message(
+                            call.message.chat.id,
+                            "⏳ У вас уже есть активный счёт. Оплатите его и повторите попытку.",
+                            reply_markup=self._main_menu_inline_keyboard(),
+                        )
+                    return
+                try:
+                    invoice = self.crypto_pay.create_invoice(
+                        amount_rub=DPI_RUB_PRICE,
+                        payload=payment_id,
+                    )
+                    invoice_id = invoice["invoice_id"]
+                    pay_url = invoice["pay_url"]
+                    self.pending_payments[payment_id] = {
+                        "payment_id": payment_id,
+                        "user_id": user_id,
+                        "chat_id": call.message.chat.id,
+                        "pay_url": pay_url,
+                    }
+                    self.payment_system.create_invoice_record(
+                        invoice_id=invoice_id,
+                        payment_id=payment_id,
+                        user_id=user_id,
+                        chat_id=call.message.chat.id,
+                        server_ip=None,
+                        sni_hostname=None,
+                        pay_url=pay_url,
+                    )
+                    markup = types.InlineKeyboardMarkup()
+                    markup.add(types.InlineKeyboardButton("💳 Оплатить в Crypto Bot", url=pay_url))
+                    self.bot.send_message(
+                        call.message.chat.id,
+                        "💳 *Счёт создан на %d ₽* (оплата в USDT через Crypto Bot)\n\n"
+                        "Скрипт `setup_nfqws.sh` придёт автоматически сразу после оплаты." % DPI_RUB_PRICE,
+                        parse_mode="Markdown",
+                        reply_markup=markup,
+                    )
+                except Exception as e:
+                    logger.error("Ошибка создания DPI-счёта: %s", e)
+                    self.bot.send_message(
+                        call.message.chat.id,
+                        "❌ Не удалось создать счёт. Попробуйте позже или напишите в поддержку: @beliy_obhodchik_support\n(" + str(e)[:120] + ")",
+                        reply_markup=self._main_menu_inline_keyboard(),
+                    )
+
+            elif call.data == "pay_dpi_stars":
+                payment_id = self.user_data.get(user_id, {}).get("payment_id")
+                if not payment_id:
+                    self._show_welcome(call.message.chat.id)
+                    return
+                if self._pending_over_limit(user_id):
+                    if not self._resume_pending(call.message.chat.id, user_id):
+                        self.bot.send_message(
+                            call.message.chat.id,
+                            "⏳ У вас уже есть активный счёт. Оплатите его и повторите попытку.",
+                            reply_markup=self._main_menu_inline_keyboard(),
+                        )
+                    return
+                prices = [types.LabeledPrice(
+                    label="БелыйОбходчик — обход DPI без сервера",
+                    amount=DPI_STARS_PRICE,
+                )]
+                self.bot.send_invoice(
+                    call.message.chat.id,
+                    "БелыйОбходчик — обход DPI без сервера",
+                    "Скрипт установки Entware + nfqws2 на роутер для обхода DPI (YouTube, Discord, Instagram, TikTok).",
+                    payment_id,
+                    "",
+                    "XTR",
+                    prices,
+                )
+
             if call.data == "make_payment":
                 # Создаём счёт в Crypto Bot
                 payment_id = self.user_data.get(user_id, {}).get('payment_id')
                 if not payment_id:
-                    self.bot.send_message(call.message.chat.id, "❌ Данные заказа потеряны. Наберите /buy заново.")
+                    self._show_welcome(call.message.chat.id)
                     return
 
                 if not self.crypto_pay:
                     self.bot.send_message(
                         call.message.chat.id,
-                        "⚠️ Оплата временно недоступна. Обратитесь в поддержку: @beliy_obhodchik_support"
+                        "⚠️ Оплата временно недоступна. Обратитесь в поддержку: @beliy_obhodchik_support",
+                        reply_markup=self._main_menu_inline_keyboard(),
                     )
                     return
 
@@ -980,13 +1241,14 @@ class AutoConfigBot:
                         self.bot.send_message(
                             call.message.chat.id,
                             "⏳ У вас уже есть активный счёт. Оплатите его и повторите попытку.",
+                            reply_markup=self._main_menu_inline_keyboard(),
                         )
                     return
 
                 try:
                     ud = self.user_data.get(user_id, {})
                     invoice = self.crypto_pay.create_invoice(
-                        amount_rub=500,
+                        amount_rub=VPS_RUB_PRICE,
                         payload=payment_id,
                     )
                     invoice_id = invoice['invoice_id']
@@ -1016,8 +1278,8 @@ class AutoConfigBot:
 
                     self.bot.send_message(
                         call.message.chat.id,
-                        "💳 *Счёт создан на 500 ₽* (оплата в USDT через Crypto Bot)\n\n"
-                        "Нажмите кнопку ниже и оплатите. Конфиг придёт автоматически сразу после оплаты.",
+                        "💳 *Счёт создан на %d ₽* (оплата в USDT через Crypto Bot)\n\n"
+                        "Нажмите кнопку ниже и оплатите. Конфиг придёт автоматически сразу после оплаты." % VPS_RUB_PRICE,
                         parse_mode='Markdown',
                         reply_markup=markup,
                     )
@@ -1025,19 +1287,21 @@ class AutoConfigBot:
                     logger.error("Ошибка создания счёта: %s", e)
                     self.bot.send_message(
                         call.message.chat.id,
-                        f"❌ Не удалось создать счёт. Попробуйте позже или напишите в поддержку: @beliy_obhodchik_support\n({str(e)[:120]})"
+                        f"❌ Не удалось создать счёт. Попробуйте позже или напишите в поддержку: @beliy_obhodchik_support\n({str(e)[:120]})",
+                        reply_markup=self._main_menu_inline_keyboard(),
                     )
                 
             elif call.data == "pay_stars":
                 payment_id = self.user_data.get(user_id, {}).get('payment_id')
                 if not payment_id:
-                    self.bot.send_message(call.message.chat.id, "❌ Данные заказа потеряны. Наберите /buy заново.")
+                    self._show_welcome(call.message.chat.id)
                     return
                 if self._pending_over_limit(user_id):
                     if not self._resume_pending(call.message.chat.id, user_id):
                         self.bot.send_message(
                             call.message.chat.id,
                             "⏳ У вас уже есть активный счёт. Оплатите его и повторите попытку.",
+                            reply_markup=self._main_menu_inline_keyboard(),
                         )
                     return
                 prices = [types.LabeledPrice(
@@ -1059,12 +1323,12 @@ class AutoConfigBot:
                 sni_hostname = ud.get('sni_hostname')
                 sni_ip = ud.get('sni_ip')
                 if not sni_hostname:
-                    self.bot.send_message(call.message.chat.id, "❌ Данные заказа потеряны. Наберите /buy заново.")
+                    self._show_welcome(call.message.chat.id)
                     return
                 self.user_states[user_id] = "awaiting_self_output"
                 script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "setup_vps.sh")
                 if not os.path.exists(script_path):
-                    self.bot.send_message(call.message.chat.id, "❌ Скрипт setup_vps.sh не найден на сервере бота.")
+                    self.bot.send_message(call.message.chat.id, "❌ Скрипт setup_vps.sh не найден на сервере бота.", reply_markup=self._main_menu_inline_keyboard())
                     return
                 with open(script_path, 'rb') as f:
                     self.bot.send_document(
@@ -1087,10 +1351,10 @@ class AutoConfigBot:
             elif call.data == "install_ssh":
                 ud = self.user_data.get(user_id, {})
                 if not ud.get('server_ip'):
-                    self.bot.send_message(call.message.chat.id, "❌ IP сервера не указан. Наберите /buy заново.")
+                    self._show_welcome(call.message.chat.id)
                     return
                 if paramiko is None:
-                    self.bot.send_message(call.message.chat.id, "❌ SSH-модуль не установлен. Пока выберите «сам запущу скрипт».")
+                    self.bot.send_message(call.message.chat.id, "❌ SSH-модуль не установлен. Пока выберите «сам запущу скрипт».", reply_markup=self._main_menu_inline_keyboard())
                     return
                 self.user_states[user_id] = "awaiting_ssh_password"
                 self.bot.send_message(
@@ -1103,7 +1367,7 @@ class AutoConfigBot:
                 ud = self.user_data.get(user_id, {})
                 password = ud.get('ssh_password')
                 if not ud.get('server_ip') or not ud.get('sni_hostname') or not password:
-                    self.bot.send_message(call.message.chat.id, "❌ Данные заказа потеряны. Наберите /buy заново.")
+                    self._show_welcome(call.message.chat.id)
                     return
                 self.user_states[user_id] = None
                 self.bot.send_message(
@@ -1117,9 +1381,9 @@ class AutoConfigBot:
                 ).start()
             
             elif call.data == "cancel_purchase":
-                self.bot.send_message(call.message.chat.id, "❌ Заказ отменён.")
                 self.user_states[user_id] = None
                 self.user_data[user_id] = {}
+                self._show_welcome(call.message.chat.id)
                 
             elif call.data == "update_existing":
                 orders = self.payment_system.get_user_orders(user_id)
@@ -1136,12 +1400,14 @@ class AutoConfigBot:
                         "Выберите заказ для обновления:",
                         reply_markup=markup
                     )
+                else:
+                    self._show_welcome(call.message.chat.id)
             
             elif call.data.startswith("update_"):
                 order_id = call.data.replace("update_", "")
                 order = self.payment_system.get_order(order_id)
                 if not order:
-                    self.bot.send_message(call.message.chat.id, "❌ Заказ не найден. Наберите /myorders.")
+                    self._show_welcome(call.message.chat.id)
                     return
                 setup = self.payment_system.get_vps_setup(user_id)
                 if not setup:
@@ -1155,7 +1421,7 @@ class AutoConfigBot:
 
                 donor = self.sni_db.get_best_donor()
                 if not donor:
-                    self.bot.send_message(call.message.chat.id, "❌ Не удалось найти новый SNI-донор. Попробуйте позже.")
+                    self.bot.send_message(call.message.chat.id, "❌ Не удалось найти новый SNI-донор. Попробуйте позже.", reply_markup=self._main_menu_inline_keyboard())
                     return
 
                 # Смена донора в установке (ключи VPS не меняются), затем реальная доставка
@@ -1183,21 +1449,23 @@ class AutoConfigBot:
                         f"✅ *Конфиг обновлён и отправлен!*\n\n"
                         f"• Новый донор: `{donor['hostname']}`\n"
                         f"• Страна: {donor['country_code']}\n"
-                        f"• Успешность: {donor['success_rate']:.0%}\n\n"
-                        f"Загрузите новый архив в роутер Keenetic (вместо старого).",
+f"• Успешность: {donor['success_rate']:.0%}\n\n"
+                    f"Загрузите новый архив в роутер Keenetic (вместо старого).",
                         parse_mode='Markdown',
+                        reply_markup=self._main_menu_inline_keyboard(),
                     )
                 else:
                     self.bot.send_message(
                         call.message.chat.id,
                         "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support",
+                        reply_markup=self._main_menu_inline_keyboard(),
                     )
             
             elif call.data.startswith("router_"):
                 key = call.data[len("router_"):]
                 info = ROUTER_CATEGORIES.get(key)
                 if not info:
-                    self.bot.send_message(call.message.chat.id, "❌ Категория не найдена. Попробуйте /router снова.")
+                    self._show_welcome(call.message.chat.id)
                     return
                 title, desc, models = info
                 lines = [f"📡 *{title}*", "", desc, ""]
@@ -1214,15 +1482,12 @@ class AutoConfigBot:
                     lines.append("💡 Назовите модель (например «Giga» или «Ультра») — я проверю, подходит ли она.")
                 else:
                     lines.append("💡 Если не уверены — напишите в /support, подскажем.")
-                self.bot.send_message(call.message.chat.id, "\n".join(lines), parse_mode='Markdown')
+                self.bot.send_message(call.message.chat.id, "\n".join(lines), parse_mode='Markdown', reply_markup=self._main_menu_inline_keyboard())
 
             elif call.data == "create_new":
                 self.user_states[user_id] = None
                 self.user_data[user_id] = {}
-                self.bot.send_message(
-                    call.message.chat.id,
-                    "Отправьте команду /buy для создания нового заказа."
-                )
+                self._show_welcome(call.message.chat.id)
         
         @self.bot.message_handler(commands=['myorders'])
         def show_orders(message):
@@ -1235,7 +1500,7 @@ class AutoConfigBot:
             orders = self.payment_system.get_user_orders(user_id)
             
             if not orders:
-                self.bot.send_message(message.chat.id, "📭 У вас пока нет заказов.")
+                self.bot.send_message(message.chat.id, "📭 У вас пока нет заказов.", reply_markup=self._main_menu_inline_keyboard())
                 return
             
             response = "📋 *Ваши заказы:*\n\n"
@@ -1253,7 +1518,7 @@ class AutoConfigBot:
 • Доставлен: {delivered_emoji}
                 """
             
-            self.bot.send_message(message.chat.id, response, parse_mode='Markdown')
+            self.bot.send_message(message.chat.id, response, parse_mode='Markdown', reply_markup=self._main_menu_inline_keyboard())
         
         @self.bot.message_handler(commands=['vps'])
         def send_vps_help(message):
@@ -1270,7 +1535,7 @@ class AutoConfigBot:
 через которую пойдёт ваш интернет. Покупается у провайдера отдельно
 (к нашей плате за настройку отношения не имеет).
 
-*Выбирайте сервер поближе:* {self._vps_recommendations_text()}
+*Выбирайте сервер поближе:* {vps_recs}
 
 🧭 *Мини-инструкция (4 шага, ~1 минута):*
 1. Откройте ссылку провайдера выше и нажмите «Заказать сервер»
@@ -1281,8 +1546,8 @@ class AutoConfigBot:
 4. Дождитесь письма с IP-адресом и *пришлите этот IP сюда* (4 числа через точки), например `123.45.67.89` — и жмите /buy.
 
 Подробная картинками-инструкция: /guide
-            """
-            self.bot.send_message(message.chat.id, vps_text, parse_mode='Markdown', disable_web_page_preview=True)
+            """.format(vps_recs=self._vps_recommendations_text())
+            self.bot.send_message(message.chat.id, vps_text, parse_mode='Markdown', disable_web_page_preview=True, reply_markup=self._main_menu_inline_keyboard())
         
         @self.bot.message_handler(commands=['router'])
         def send_router_help(message):
@@ -1295,6 +1560,7 @@ class AutoConfigBot:
             markup = types.InlineKeyboardMarkup()
             for key, (title, _, _) in ROUTER_CATEGORIES.items():
                 markup.add(types.InlineKeyboardButton(title, callback_data=f"router_{key}"))
+            markup.add(types.InlineKeyboardButton("🏠 В главное меню", callback_data="cmd_menu"))
             self.bot.send_message(
                 message.chat.id,
                 "📡 *Подбор роутера*\n\n"
@@ -1340,7 +1606,7 @@ class AutoConfigBot:
 безопасный сайт (например, api.notion.com), а не VPN. Плюс мы ведём
 автообновление доноров и при случае меняем их без вашего участия.
             """
-            self.bot.send_message(message.chat.id, faq_text, parse_mode='Markdown', disable_web_page_preview=True)
+            self.bot.send_message(message.chat.id, faq_text, parse_mode='Markdown', disable_web_page_preview=True, reply_markup=self._main_menu_inline_keyboard())
 
         @self.bot.message_handler(commands=['guide', 'instructions', 'howto'])
         def send_guide(message):
@@ -1355,7 +1621,7 @@ class AutoConfigBot:
 
 1. `/buy` — начать
 2. Указать IP сервера (как завести сервер: /vps)
-3. Оплатить (500 ₽ или {stars} ⭐)
+3. Оплатить (1500 ₽ или {stars} ⭐)
 4. Бот сам подключается к вашему серверу, ставит и настраивает всё + присылает готовый файл для роутера
    • *Авто-SSH*: прислать пароль `root` (бот сделает всё сам)
    • *Сам*: скачать `setup_vps.sh`, запустить, прислать блок вывода
@@ -1376,8 +1642,13 @@ class AutoConfigBot:
                 devices="\n".join(f"• {d}" for d in SUPPORTED_DEVICES),
                 services="\n".join(f"• *{name}* — {desc}" for name, desc in ADDITIONAL_SERVICES),
             )
-            self.bot.send_message(message.chat.id, guide_text, parse_mode='Markdown', disable_web_page_preview=True)
+            self.bot.send_message(message.chat.id, guide_text, parse_mode='Markdown', disable_web_page_preview=True, reply_markup=self._main_menu_inline_keyboard())
             
+            self.bot.send_message(message.chat.id, _build_status_text(self), parse_mode='Markdown', reply_markup=self._main_menu_inline_keyboard())
+        
+        def _build_status_text(self) -> str:
+            """Текст состояния системы: SNI-доноры и лучший донор."""
+            stats = self.sni_db.get_stats()
             status_text = f"""
 📊 *Статус системы:*
 
@@ -1399,8 +1670,18 @@ class AutoConfigBot:
                 status_text += f"  • Успешность: {best_donor['success_rate']:.2%}\n"
             
             status_text += "\n✅ Система работает стабильно"
-            
-            self.bot.send_message(message.chat.id, status_text, parse_mode='Markdown')
+            return status_text
+        
+        @self.bot.message_handler(commands=['status'])
+        def send_status(message):
+            """Состояние системы (SNI-доноры)."""
+            if not self._guard_message(message):
+                return
+            user_id = message.from_user.id
+            if self._antiflood(user_id, COMMAND_COOLDOWN):
+                self._notify_slow(message.chat.id, user_id)
+                return
+            self.bot.send_message(message.chat.id, _build_status_text(self), parse_mode='Markdown', reply_markup=self._main_menu_inline_keyboard())
         
         @self.bot.message_handler(commands=['support'])
         def send_support(message):
@@ -1421,7 +1702,8 @@ class AutoConfigBot:
                 "• «Перестал работать Ютуб»\n"
                 "• «Где взять IP сервера?»\n\n"
                 "Чтобы закрыть чат, отправьте: /exit",
-                parse_mode='Markdown'
+                parse_mode='Markdown',
+                reply_markup=self._main_menu_inline_keyboard(),
             )
 
         @self.bot.message_handler(commands=['exit'])
@@ -1431,9 +1713,10 @@ class AutoConfigBot:
             user_id = message.from_user.id
             if self.user_states.get(user_id) == "support":
                 self.user_states[user_id] = None
-                self.bot.send_message(message.chat.id, "👌 Чат поддержки закрыт. Если что — снова пишите /support")
+                self.bot.send_message(message.chat.id, "👌 Чат поддержки закрыт.")
             else:
-                self.bot.send_message(message.chat.id, "🙂 Вы сейчас не в чате поддержки. Начать: /support")
+                self.bot.send_message(message.chat.id, "🙂 Вы не в чате поддержки.")
+            self._show_welcome(message.chat.id)
 
         @self.bot.message_handler(func=lambda m: m.text and not m.text.startswith('/'))
         def handle_support_message(message):
@@ -1500,7 +1783,8 @@ class AutoConfigBot:
             except Exception as e:
                 self.bot.send_message(
                     message.chat.id,
-                    f"❌ Ошибка: {str(e)}"
+                    f"❌ Ошибка: {str(e)}",
+                    reply_markup=self._main_menu_inline_keyboard(),
                 )
         
         @self.bot.message_handler(commands=['stats'])
@@ -1524,13 +1808,13 @@ class AutoConfigBot:
                 users_total = one("SELECT COUNT(DISTINCT user_id) FROM payments")
                 invoices_active = one("SELECT COUNT(*) FROM invoices WHERE status='active'")
                 setups_total = one("SELECT COUNT(*) FROM vps_setups")
-                revenue_rub = one("SELECT COUNT(*) FROM payments WHERE status='paid'") * 500
+                revenue_rub = one("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status='paid'")
                 stars_paid = one("SELECT COUNT(*) FROM payments WHERE status='paid'")  # заглушка
                 revenue_stars = one("SELECT COUNT(*) FROM orders WHERE delivered_at IS NOT NULL") * STARS_PRICE
                 conn.close()
             except Exception as e:
                 logger.error("Ошибка /stats: %s", e)
-                self.bot.send_message(message.chat.id, f"❌ Ошибка получения статистики: {e}")
+                self.bot.send_message(message.chat.id, f"❌ Ошибка получения статистики: {e}", reply_markup=self._main_menu_inline_keyboard())
                 return
 
             text = (
@@ -1545,7 +1829,7 @@ class AutoConfigBot:
                 f"💳 Выручка (crypto): {revenue_rub} ₽\n"
                 f"⭐ Выручка (звёзды): ~{revenue_stars} ⭐\n"
             )
-            self.bot.send_message(message.chat.id, text, parse_mode='Markdown')
+            self.bot.send_message(message.chat.id, text, parse_mode='Markdown', reply_markup=self._main_menu_inline_keyboard())
         
         @self.bot.pre_checkout_query_handler(func=lambda query: True)
         def handle_pre_checkout(query):
@@ -1563,11 +1847,26 @@ class AutoConfigBot:
             payload = message.successful_payment.invoice_payload
             stars = message.successful_payment.total_amount // 1
             
+            # ===== Услуга «Без сервера» (обход Ютуб/Дискорд/Инстаграм/ТикТок через Zapret) =====
+            if str(payload).startswith("dpi_"):
+                if stars < DPI_STARS_PRICE:
+                    self.bot.send_message(
+                        message.chat.id,
+                        "⚠️ Сумма оплаты не совпадает с ценой настройки. "
+                        "Напишите в поддержку: @beliy_obhodchik_support",
+                        reply_markup=self._main_menu_inline_keyboard()
+                    )
+                    return
+                self.payment_system.confirm_payment(str(payload))
+                self._deliver_dpi_setup(message.chat.id, user_id, stars)
+                return
+            
             ud = self.user_data.get(user_id, {})
             if ud.get('payment_id') != payload:
                 self.bot.send_message(
                     message.chat.id,
-                    f"✅ Оплата {stars} ⭐ получена! Обратитесь к поддержке: @beliy_obhodchik_support"
+                    f"✅ Оплата {stars} ⭐ получена! Обратитесь к поддержке: @beliy_obhodchik_support",
+                    reply_markup=self._main_menu_inline_keyboard()
                 )
                 return
             
@@ -1579,19 +1878,39 @@ class AutoConfigBot:
                         self.bot.send_message(
                             message.chat.id,
                             f"✅ *Оплата {stars} ⭐ подтверждена!* Конфиг сформирован и отправлен выше.",
-                            parse_mode='Markdown'
+                            parse_mode='Markdown',
+                            reply_markup=self._main_menu_inline_keyboard()
                         )
                     else:
                         self.bot.send_message(
                             message.chat.id,
-                            "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support"
+                            "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support",
+                            reply_markup=self._main_menu_inline_keyboard()
                         )
             except Exception as e:
                 logger.error("Ошибка доставки после оплаты звёздами: %s", e)
                 self.bot.send_message(
                     message.chat.id,
-                    "❌ Произошла ошибка. Платеж получен, напишите в поддержку: @beliy_obhodchik_support"
+                    "❌ Произошла ошибка. Платеж получен, напишите в поддержку: @beliy_obhodchik_support",
+                    reply_markup=self._main_menu_inline_keyboard()
                 )
+
+        @self.bot.message_handler(func=lambda m: m.text and m.text.startswith('/'))
+        def handle_unknown_command(message):
+            """Неизвестная команда: не молчим, а показываем меню."""
+            if not self._guard_message(message):
+                return
+            user_id = message.from_user.id
+            if self._antiflood(user_id, COMMAND_COOLDOWN):
+                self._notify_slow(message.chat.id, user_id)
+                return
+            command = (message.text or '').split()[0]
+            self.bot.send_message(
+                message.chat.id,
+                f"🤔 Не знаю команду `{command}`. Вот что я умею:",
+                parse_mode='Markdown',
+                reply_markup=self._main_menu_inline_keyboard(),
+            )
     
     def get_user_state(self, user_id: int) -> Optional[str]:
         """Получение состояния пользователя"""
@@ -1606,7 +1925,7 @@ class AutoConfigBot:
         user_data = data if data is not None else self.user_data.get(user_id, {})
         
         if not all(k in user_data for k in ['server_ip', 'sni_hostname', 'payment_id']):
-            self.bot.send_message(chat_id, "❌ Ошибка: не все данные собраны.")
+            self.bot.send_message(chat_id, "❌ Ошибка: не все данные собраны.", reply_markup=self._main_menu_inline_keyboard())
             return False
         
         try:
@@ -1666,10 +1985,10 @@ class AutoConfigBot:
 • Short ID: `{params['short_id']}`
 
 📁 *Архив содержит:*
-1. Конфигурация для Xray/Sing-box
-2. Правила HydraRoute  
-3. Инструкция по настройке
-4. Скрипт проверки обновлений
+1. Конфигурация для Xray (`xray_client.json`)
+2. Конфигурация для Sing-box (`singbox_client.json`)
+3. Правила HydraRoute + CLI-команды
+4. VLESS-ссылка + инструкция README.txt
 
 📋 *Что делать дальше:*
 1. Распакуйте архив на компьютере
@@ -1680,13 +1999,19 @@ class AutoConfigBot:
 💡 *Помощь:*
 • Инструкция в архиве
 • Поддержка: @beliy_obhodchik_support
-• FAQ: https://ваш-сайт.ru/faq
+• Вопросы: /faq
 
 🔄 *Автообновления:*
 При смене SNI-донора система автоматически обновит конфигурацию.
                         """,
                     parse_mode='Markdown'
                 )
+            
+            self.bot.send_message(
+                chat_id,
+                "Нажмите кнопку меню, если нужно что-то ещё 👇",
+                reply_markup=self._main_menu_inline_keyboard()
+            )
             
             # Отмечаем заказ как доставленный
             self.payment_system.mark_order_delivered(order_id)
@@ -1705,7 +2030,8 @@ class AutoConfigBot:
             logger.error(f"Ошибка при генерации конфига: {e}")
             self.bot.send_message(
                 chat_id,
-                f"❌ Ошибка при генерации конфигурации: {str(e)}"
+                f"❌ Ошибка при генерации конфигурации: {str(e)}",
+                reply_markup=self._main_menu_inline_keyboard()
             )
             return False
     
@@ -1732,12 +2058,15 @@ class AutoConfigBot:
             try:
                 self.payment_system.confirm_payment(rec['payment_id'])
                 self.user_data[rec['user_id']] = rec
-                if not self._offer_install_choice(rec['user_id'], rec['chat_id']):
-                    ok = self.generate_and_send_config(
-                        rec['user_id'], rec['chat_id'], data=rec
-                    )
-                    if not ok:
-                        self.pending_payments[pid] = rec
+                if str(pid).startswith('dpi_'):
+                    ok = self._deliver_dpi_setup(rec['chat_id'], rec['user_id'], stars=rec.get('stars'))
+                else:
+                    if not self._offer_install_choice(rec['user_id'], rec['chat_id']):
+                        ok = self.generate_and_send_config(
+                            rec['user_id'], rec['chat_id'], data=rec
+                        )
+                        if not ok:
+                            self.pending_payments[pid] = rec
                 self.payment_system.mark_invoice_paid(inv.get('invoice_id', ''))
                 logger.info("Оплата %s подтверждена, конфиг отправлен", pid)
             except Exception as e:
@@ -1814,7 +2143,7 @@ class AutoConfigBot:
             )
         except Exception as e:
             logger.error("Не удалось сохранить установку VPS пользователя %s: %s", user_id, e)
-            self.bot.send_message(chat_id, "❌ Не удалось сохранить ключи установки.")
+            self.bot.send_message(chat_id, "❌ Не удалось сохранить ключи установки.", reply_markup=self._main_menu_inline_keyboard())
             return False
         self.user_states[user_id] = None
         ok = self.generate_and_send_config(user_id, chat_id)
@@ -1822,7 +2151,8 @@ class AutoConfigBot:
             self.bot.send_message(
                 chat_id,
                 "✅ *Готово!* Конфиг собран на настоящих ключах вашего VPS и отправлен выше.",
-                parse_mode='Markdown'
+                parse_mode='Markdown',
+                reply_markup=self._main_menu_inline_keyboard()
             )
         return ok
 
@@ -1832,12 +2162,12 @@ class AutoConfigBot:
         sni_hostname = ud.get('sni_hostname')
         sni_ip = ud.get('sni_ip')
         if not server_ip or not sni_hostname:
-            self.bot.send_message(chat_id, "❌ IP сервера или SNI-донор потеряны. Наберите /buy заново.")
+            self._show_welcome(chat_id)
             self.user_states[user_id] = None
             return
         script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "setup_vps.sh")
         if not os.path.exists(script_path):
-            self.bot.send_message(chat_id, "❌ Скрипт setup_vps.sh не найден на сервере бота.")
+            self.bot.send_message(chat_id, "❌ Скрипт setup_vps.sh не найден на сервере бота.", reply_markup=self._main_menu_inline_keyboard())
             self.user_states[user_id] = None
             return
         try:
@@ -1861,7 +2191,8 @@ class AutoConfigBot:
                 self.bot.send_message(
                     chat_id,
                     "❌ Установка прошла, но бот не нашёл блок ключей. Скопируйте вывод вручную — "
-                    "выберите «Сам запущу скрипт», либо напишите в поддержку."
+                    "выберите «Сам запущу скрипт», либо напишите в поддержку.",
+                    reply_markup=self._main_menu_inline_keyboard(),
                 )
                 self.user_states[user_id] = None
                 return
@@ -1893,7 +2224,8 @@ class AutoConfigBot:
             self.bot.send_message(
                 chat_id,
                 f"❌ Не удалось подключиться по SSH: {str(e)[:200]}\n"
-                f"Проверьте, что IP верный и включён пароль root для SSH (PermitRootLogin)."
+                f"Проверьте, что IP верный и включён пароль root для SSH (PermitRootLogin).",
+                reply_markup=self._main_menu_inline_keyboard(),
             )
             self.user_states[user_id] = None
 
@@ -1908,11 +2240,48 @@ class AutoConfigBot:
             lines.append(f"\n🎁 Промокод на скидку: `{PROMO_CODE}`")
         return "\n".join(lines)
 
+    def _sni_refresh_loop(self):
+        """Фоновое обновление успешности SNI-доноров.
+        Периодически перепроверяет существующих доноров и обновляет success_rate,
+        чтобы choose_best_donor всегда давал рабочий домен. Сканирование новых
+        подсетей не запускаем: демо-сканер заполняет БД случайными данными."""
+        if SNI_CHECK_INTERVAL <= 0:
+            return
+        while True:
+            time.sleep(SNI_CHECK_INTERVAL)
+            try:
+                for donor in self.sni_db.get_donors_for_check(limit=20):
+                    res = self.scanner.check_donor(donor['hostname'], donor['ip_address'])
+                    self.sni_db.update_success_rate(
+                        donor['id'], res['is_accessible'], res['response_time_ms']
+                    )
+                    logger.info(
+                        "SNI-донор %s (%s): %s",
+                        donor['hostname'], donor['ip_address'],
+                        "доступен" if res['is_accessible'] else "недоступен",
+                    )
+            except Exception as e:
+                logger.warning("Ошибка фоновой проверки SNI-доноров: %s", e)
+
     def start(self):
-        """Запуск бота"""
+        """Запуск бота (устойчив к сетевым сбоям: поллинг перезапускается сам)."""
         logger.info("Запускаю Telegram-бота...")
         threading.Thread(target=self._check_payments_loop, daemon=True).start()
-        self.bot.infinity_polling(none_stop=True, interval=2, timeout=20, long_polling_timeout=LONG_POLLING_TIMEOUT)
+        threading.Thread(target=self._sni_refresh_loop, daemon=True).start()
+        while True:
+            try:
+                self.bot.infinity_polling(
+                    none_stop=True,
+                    interval=2,
+                    timeout=20,
+                    long_polling_timeout=LONG_POLLING_TIMEOUT,
+                )
+            except KeyboardInterrupt:
+                logger.info("Бот остановлен пользователем.")
+                return
+            except Exception as e:
+                logger.error("Поллинг завершился с ошибкой, перезапуск через 10 сек: %s", e)
+                time.sleep(10)
 
 
 def create_demo_bot():
