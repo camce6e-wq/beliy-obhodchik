@@ -39,19 +39,23 @@
 
 ✅ **Бот создан!** @beliy_obhodchik_bot
 
-### ШАГ 3: ЗАПУСТИ БОТА НА КОМПЬЮТЕРЕ (5 минут)
+### ШАГ 3: ЗАПУСТИ БОТА (5 минут)
 
 ```bash
-# 1. Установи Python (если нет)
-# 2. Установи библиотеку
-pip install pyTelegramBotAPI
+# 1. Установи Python (если нет) и зависимости
+pip install -r requirements.txt
 
-# 3. Запусти бота (Windows)
-set TELEGRAM_BOT_TOKEN=твой_токен_из_шага_2
-python telegram_bot.py
+# 2. Скопируй пример настроек и заполни токены
+#    (Windows)  copy .env.example .env
+#    (Linux)    cp .env.example .env
+#    В .env пропиши: TELEGRAM_BOT_TOKEN, CRYPTOPAY_TOKEN,
+#    ADMIN_USER_IDS=<свой user_id>, а при наличии бота поддержки —
+#    SUPPORT_BOT_TOKEN и MAIN_BOT_USERNAME.
 
-# Или Linux/Mac
-export TELEGRAM_BOT_TOKEN=твой_токен_из_шага_2
+# 3. Запусти основной бот (Windows)
+run_prod_bot.bat
+
+# Или напрямую (токены бот прочитает из .env)
 python telegram_bot.py
 ```
 
@@ -68,18 +72,19 @@ python telegram_bot.py
 
 ### ШАГ 5: НАСТРОЙ ПЛАТЁЖНУЮ СИСТЕМУ (5 минут)
 
-**Вариант А: Telegram Payments (проще всего)**
-- В @BotFather → `/mybots` → твой бот → Payments
-- Настрой Telegram Payments
+Бот принимает оплату двумя способами (обе уже в коде):
 
-**Вариант Б: ЮKassa (для РФ)**
-- Регистрация на kassa.yandex.ru
-- Получи shopId и secretKey
-- Замени в `telegram_bot.py` строку 280
+**Способ 1: Crypto Pay (крипта, анонимно)**
+- @CryptoBot → Crypto Pay → создать приложение → токен в `.env` (`CRYPTOPAY_TOKEN`)
+- Оплата автоматически проверяется, конфиг уходит без участия оператора
 
-**Вариант В: Crypto (анонимно)**
-- Принимай USDT (TRC20) или BTC
-- Давай адрес кошелька после заказа
+**Способ 2: Telegram Stars (встроенные платёжки Telegram)**
+- Работает сразу после создания бота в @BotFather, настройка токена не нужна
+
+**Бот поддержки (опционально)**
+- @BotFather → `/newbot` → `beliy_obhodchik_support_bot` → токен в `.env`
+  (`SUPPORT_BOT_TOKEN`, `MAIN_BOT_USERNAME=beliy_obhodchik_bot`)
+- Запускается командой `run_support_bot.bat` или отдельным сервисом
 
 ✅ **Готово к приёму денег!**
 
@@ -139,13 +144,16 @@ python telegram_bot.py
 ✅ Подожди 2 минуты после создания GitHub Pages
 
 ### ❓ "Нет SNI-доноров"
-✅ Запусти `python sni_manager.py` для сканирования
+✅ Доноры добавляются проверенными доменами (вручную или через фоновые проверки).
+   Бот сам не сканирует подсети IP: вместо случайных данных в базе работают только
+   реально проверенные TLS-пробой домены. Добавить донора:
+   `python -c "import sni_manager as s; s.SNIDatabase().add_donor('домен.example', '8.8.8.8')"`
 
 ### ❓ "Пользователи не понимают"
 ✅ Создай видео-инструкцию на 2 минуты
 
 ### ❓ "Как принимать оплату?"
-✅ Начни с Crypto (USDT), потом подключи ЮKassa
+✅ Начни с Crypto Pay (крипта, автоматическая проверка), звёзды Telegram уже работают
 
 ---
 

@@ -517,9 +517,9 @@ HydraRoute позволяет пускать через VPN только заб�
 ПОДДЕРЖКА
 ═══════════════════════════════════════════════════════════
 
-Telegram: @your_support_bot
+Telegram: @beliy_obhodchik_support_bot
 Email: support@your-domain.com
-FAQ: https://your-domain.com/faq
+FAQ: /faq в боте @beliy_obhodchik_bot
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Сгенерировано автоматически: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}

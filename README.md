@@ -12,7 +12,7 @@ sni-database/
 ├── telegram_bot.py            # Автоматический Telegram-бот
 ├── support_bot.py             # Бот поддержки (пересылка вопросов владельцу)
 ├── keenetic_config_generator.py # Генератор конфигов для Keenetic
-├── sni_manager.py             # База SNI-доноров с автосканированием
+├── sni_manager.py             # База SNI-доноров с TLS-проверкой работоспособности
 ├── database_schema.sql        # Схема базы данных
 ├── requirements.txt           # Зависимости Python
 └── README.md                  # Эта инструкция
@@ -36,19 +36,20 @@ sni-database/
 1. Открой [@BotFather](https://t.me/botfather) в Telegram
 2. Создай нового бота командой `/newbot`
 3. Скопируй токен (пример: `1234567890:ABCDEFGhijKLMNopQRSTuvwXYZ`)
-4. Установи зависимости:
+4. Скопируй пример настроек и заполни токены (`TELEGRAM_BOT_TOKEN`,
+   `CRYPTOPAY_TOKEN`, `ADMIN_USER_IDS`):
+   ```bash
+   cp .env.example .env
+   ```
+5. Установи зависимости и запусти бота:
    ```bash
    pip install -r requirements.txt
-   ```
-5. Запусти бота:
-   ```bash
+
    # Windows
-   set TELEGRAM_BOT_TOKEN=твой_токен
-   python telegram_bot.py
-   
-   # Linux/Mac
-   export TELEGRAM_BOT_TOKEN=твой_токен
-   python telegram_bot.py
+   run_prod_bot.bat            # читает .env
+
+   # Linux
+   python telegram_bot.py      # токены из .env
    ```
 
 ### Шаг 3: Настроить платёжную систему
@@ -92,9 +93,9 @@ CRYPTOPAY_TOKEN=токен_приложения_Crypto_Pay
 ## 🔧 Технические компоненты
 
 ### 1. База SNI-доноров (`sni_manager.py`)
-- Автоматическое сканирование работающих доноров
+- Доноры — проверенные домены: `check_donor` честно проверяет TLS-хендшейк + ALPN h2
 - Рейтинговая система (успешность, скорость, стабильность)
-- Ежедневное обновление базы
+- Повторный `add_donor` не сбрасывает статистику; CDN-хосты определяются по имени
 
 ### 2. Генератор конфигов (`keenetic_config_generator.py`)
 - Конфиги для Xray и Sing-box
@@ -177,7 +178,7 @@ CRYPTOPAY_TOKEN=токен_приложения_Crypto_Pay
 ## 🎯 Первые шаги после запуска
 
 1. **Протестируй систему** на себе
-2. **Настрой платёжную систему** (ЮKassa/Stripe)
+2. **Платёжные системы** уже настроены: Crypto Pay и Telegram Stars (см. `.env.example`)
 3. **Расскажи о серви��е** на 4PDA и форумах
 4. **Собери первые отзывы** от пользователей
 5. **Масштабируй** на другие роутеры
