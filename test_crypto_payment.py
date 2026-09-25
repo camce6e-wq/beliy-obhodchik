@@ -128,8 +128,12 @@ def _has_install_buttons():
         for m in sent_markups
     )
 
+dbg_buttons = [b.to_dict().get("callback_data") for m in sent_markups if m for row2 in m.keyboard for b in row2]
+print("DEBUG: markups=%r docs=%d msg_tail=%r backoff=%d pending=%r" % (
+    dbg_buttons, len(sent_docs), sent_messages[-2:], len(bot._delivery_backoff), dict(bot.pending_payments)))
 assert _has_install_buttons(), "не показаны кнопки выбора установки VPS"
 assert len(sent_docs) == 0, "документ не должен отправляться до установки ключей"
+
 con = sqlite3.connect(DB)
 conf = con.execute("SELECT status FROM payments WHERE payment_id=?", (pid,)).fetchone()
 invst = con.execute("SELECT status FROM invoices WHERE invoice_id=?", (inv["invoice_id"],)).fetchone()

@@ -36,7 +36,7 @@ jobs:
               echo "PASS $t"
             else
               echo "::error ::FAILED $t"
-              printf '%s\n' "$out" | tail -n 8 | sed 's/^/::error ::/'
+              printf '%s\n' "$out" | tail -n 25 | sed 's/^/::error ::/'
               exit 1
             fi
           done
