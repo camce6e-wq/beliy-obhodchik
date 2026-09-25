@@ -1969,7 +1969,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
             if message.from_user.id not in ADMIN_USER_IDS:
                 return
             try:
-                conn = sqlite3.connect(self.payment_system.db_path)
+                conn = self.payment_system._connect()
                 cur = conn.cursor()
 
                 def one(q):
@@ -2173,11 +2173,18 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
                     'short_id': real_setup['short_id']
                 }
             else:
-                # Установка ещё не выполнена — генерируем демо-конфиг
-                archive_path, params = quick_generate(
-                    server_ip=user_data['server_ip'],
-                    sni_hostname=user_data['sni_hostname']
+                # Установка ещё не выполнена: нельзя выдавать конфиг под случайные ключи —
+                # на VPS должны стоять те же ключи, что в конфиге. Иначе товар нерабочий.
+                self.bot.send_message(
+                    chat_id,
+                    "🖥️ Доставка конфига требует установки Xray на ваш VPS.\n"
+                    "Выберите способ установки (авто по SSH или сами через скрипт), "
+                    "тогда придёт архив с настоящими ключами.\n\n"
+                    "Начните: /buy → введите IP → «Оплатить» → «Установить». "
+                    "Повторная оплата не потребуется.",
+                    reply_markup=self._main_menu_inline_keyboard(),
                 )
+                return False
             
             # Создаём заказ в базе (идемпотентно: повтор гонки не плодит дубли)
             order_id = self.payment_system.create_order(
@@ -2540,8 +2547,8 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
     def _sni_refresh_loop(self):
         """Фоновое обновление успешности SNI-доноров.
         Периодически перепроверяет существующих доноров и обновляет success_rate,
-        чтобы choose_best_donor всегда давал рабочий домен. Сканирование новых
-        подсетей не запускаем: демо-сканер заполняет БД случайными данными."""
+        чтобы choose_best_donor всегда давал рабочий домен. Новые подсети не
+        сканируются: в БД работают реально проверенные TLS-пробой доноры."""
         if SNI_CHECK_INTERVAL <= 0:
             return
         while True:
