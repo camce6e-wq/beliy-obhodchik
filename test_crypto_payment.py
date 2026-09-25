@@ -33,7 +33,7 @@ class FakeCryptoPay:
             "invoice_id": "inv_" + hashlib.md5(payload.encode()).hexdigest()[:8],
             "status": "active",
             "pay_url": "https://t.me/CryptoBot?start=pay_" + payload,
-            "amount": 500,
+            "amount": amount_rub,
             "payload": payload,
         }
         self.created.append(inv)

@@ -8,6 +8,9 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 import telegram_bot as tb
 
+# Тест не должен зависеть от локального .env (там может быть ADMIN_USER_IDS)
+tb.ADMIN_USER_IDS = []
+
 bot = tb.AutoConfigBot(tb.TELEGRAM_BOT_TOKEN)
 
 sent = []

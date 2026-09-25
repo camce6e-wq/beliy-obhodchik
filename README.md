@@ -10,7 +10,7 @@
 sni-database/
 ├── index.html                 # Лендинг для приёма заказов
 ├── telegram_bot.py            # Автоматический Telegram-бот
-├── vps_installer.py           # Установщик на VPS пользователя
+├── support_bot.py             # Бот поддержки (пересылка вопросов владельцу)
 ├── keenetic_config_generator.py # Генератор конфигов для Keenetic
 ├── sni_manager.py             # База SNI-доноров с автосканированием
 ├── database_schema.sql        # Схема базы данных
@@ -38,7 +38,7 @@ sni-database/
 3. Скопируй токен (пример: `1234567890:ABCDEFGhijKLMNopQRSTuvwXYZ`)
 4. Установи зависимости:
    ```bash
-   pip install pyTelegramBotAPI
+   pip install -r requirements.txt
    ```
 5. Запусти бота:
    ```bash
@@ -96,17 +96,13 @@ CRYPTOPAY_TOKEN=токен_приложения_Crypto_Pay
 - Рейтинговая система (успешность, скорость, стабильность)
 - Ежедневное обновление базы
 
-### 2. Установщик VPS (`vps_installer.py`)
-- Полностью автоматическая настройка VLESS Reality
-- Генерация уникальных ключей для каждого пользователя
-- Создание конфигов для Keenetic
-
-### 3. Генератор конфигов (`keenetic_config_generator.py`)
+### 2. Генератор конфигов (`keenetic_config_generator.py`)
 - Конфиги для Xray и Sing-box
 - Правила HydraRoute для раздельной маршрутизации
 - Полные инструкции для пользователя
+- Настоящая пара x25519 (публичный ключ уходит в конфиг, приватный остаётся на сервере)
 
-### 4. Telegram-бот (`telegram_bot.py`)
+### 3. Telegram-бот (`telegram_bot.py`)
 - Приём заказов и оплаты
 - Автоматическая генерация конфигов
 - Поддержка пользователей

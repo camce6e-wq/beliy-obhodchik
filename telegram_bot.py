@@ -6,11 +6,13 @@ Telegram-бот для автоматической продажи конфиг�
 
 import os
 import sys
+import re
 import time
 import logging
 import hashlib
-import uuid
 import threading
+import ipaddress
+import shlex
 from datetime import datetime
 from typing import Optional, Any
 import sqlite3
@@ -23,7 +25,6 @@ sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 try:
     import telebot
     from telebot import types
-    from telebot.util import quick_markup
 except ImportError:
     print("Установите библиотеку: pip install pyTelegramBotAPI")
     exit(1)
@@ -206,13 +207,26 @@ SNI_CHECK_INTERVAL = int(os.environ.get('SNI_CHECK_INTERVAL', '3600'))
 class PaymentSystem:
     """Класс для обработки платежей (упрощённая версия)"""
     
-    def __init__(self, db_path: str = "payments.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        self.db_path = db_path or os.environ.get('PAYMENTS_DB', 'payments.db')
         self.init_database()
+    
+    def _connect(self) -> sqlite3.Connection:
+        """Соединение с SQLite с busy_timeout (защита от 'database is locked' при WAL)."""
+        conn = sqlite3.connect(self.db_path, timeout=10)
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
+    
+    @staticmethod
+    def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str):
+        cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        if column not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
     
     def init_database(self):
         """Инициализация базы платежей"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS payments (
@@ -222,6 +236,7 @@ class PaymentSystem:
                     amount INTEGER,
                     currency TEXT DEFAULT 'RUB',
                     status TEXT DEFAULT 'pending',
+                    source TEXT DEFAULT 'crypto',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     paid_at TIMESTAMP,
                     metadata TEXT
@@ -253,6 +268,7 @@ class PaymentSystem:
                     sni_hostname TEXT,
                     status TEXT DEFAULT 'active',
                     pay_url TEXT,
+                    source TEXT DEFAULT 'crypto',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -271,20 +287,23 @@ class PaymentSystem:
                 )
             """)
             
+            # Миграция уже существующих БД: добавляем недостающие колонки
+            self._ensure_column(conn, "payments", "source", "TEXT DEFAULT 'crypto'")
+            self._ensure_column(conn, "invoices", "source", "TEXT DEFAULT 'crypto'")
             conn.commit()
     
     def create_payment(self, user_id: int, username: str, amount: int = VPS_RUB_PRICE,
-                       payment_id: Optional[str] = None) -> str:
+                       payment_id: Optional[str] = None, source: str = "crypto") -> str:
         """Создание нового платежа"""
         if payment_id is None:
             payment_id = f"pay_{hashlib.md5(f'{user_id}{datetime.now()}{secrets.token_hex(4)}'.encode()).hexdigest()[:16]}"
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO payments (payment_id, user_id, username, amount, status)
-                VALUES (?, ?, ?, ?, 'pending')
-            """, (payment_id, user_id, username, amount))
+                INSERT INTO payments (payment_id, user_id, username, amount, status, source)
+                VALUES (?, ?, ?, ?, 'pending', ?)
+            """, (payment_id, user_id, username, amount, source))
             
             conn.commit()
         
@@ -293,7 +312,7 @@ class PaymentSystem:
     
     def confirm_payment(self, payment_id: str):
         """Подтверждение оплаты"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE payments 
@@ -305,27 +324,58 @@ class PaymentSystem:
         
         logger.info(f"Платёж {payment_id} подтверждён")
     
+    def get_payment(self, payment_id: str) -> Optional[dict]:
+        """Получение платежа по payment_id (для сверки суммы в момент доставки)."""
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM payments WHERE payment_id = ?", (payment_id,)
+            ).fetchone()
+            return dict(row) if row else None
+    
+    def mark_payment_stars(self, payment_id: str, amount_stars: int):
+        """Переход оплаты на звёзды: фиксируем цену в звёздах и источник."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE payments SET amount = ?, currency = 'XTR', source = 'stars' WHERE payment_id = ?",
+                (amount_stars, payment_id),
+            )
+            conn.commit()
+    
     def create_order(self, payment_id: str, user_id: int, 
                      config_path: str, server_ip: str, 
                      uuid: str, sni_hostname: str) -> str:
-        """Создание заказа"""
-        order_id = f"order_{hashlib.md5(f'{payment_id}{datetime.now()}'.encode()).hexdigest()[:12]}"
-        
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
+        """Создание заказа. Идемпотентно: для одного платежа один заказ
+        (повторная выдача/сбой не плодит дубликаты)."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT order_id FROM orders WHERE payment_id = ? LIMIT 1", (payment_id,)
+            ).fetchone()
+            if row:
+                return row[0]
+            order_id = f"order_{hashlib.md5(f'{payment_id}{datetime.now()}'.encode()).hexdigest()[:12]}"
+            conn.execute("""
                 INSERT INTO orders (order_id, payment_id, user_id, config_path, server_ip, uuid, sni_hostname)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (order_id, payment_id, user_id, config_path, server_ip, uuid, sni_hostname))
-            
             conn.commit()
         
         logger.info(f"Создан заказ {order_id} для платежа {payment_id}")
         return order_id
     
+    def find_paid_order(self, payment_id: str) -> Optional[dict]:
+        """Заказ, для которого конфиг уже доставлен (идемпотентность выдачи)."""
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM orders WHERE payment_id = ? AND delivered_at IS NOT NULL LIMIT 1",
+                (payment_id,),
+            ).fetchone()
+            return dict(row) if row else None
+    
     def get_user_orders(self, user_id: int) -> list:
         """Получение заказов пользователя"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("""
@@ -340,7 +390,7 @@ class PaymentSystem:
     
     def mark_order_delivered(self, order_id: str):
         """Отметка заказа как доставленного"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE orders 
@@ -357,7 +407,7 @@ class PaymentSystem:
                        sni_hostname: str, sni_ip: str = None,
                        install_method: str = "self") -> None:
         """Сохранение реально установленной VPS-конфигурации (ключи x25519 с VPS)."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute("""
                 INSERT OR REPLACE INTO vps_setups
                 (user_id, server_ip, uuid, public_key, short_id,
@@ -370,7 +420,7 @@ class PaymentSystem:
 
     def get_vps_setup(self, user_id: int) -> Optional[dict]:
         """Получение реально установленных ключей VLESS Reality для пользователя."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT * FROM vps_setups WHERE user_id = ?", (user_id,)
@@ -379,7 +429,7 @@ class PaymentSystem:
 
     def get_order(self, order_id: str) -> Optional[dict]:
         """Получение одного заказа по order_id."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT * FROM orders WHERE order_id = ?", (order_id,)
@@ -389,7 +439,7 @@ class PaymentSystem:
     def update_vps_setup_sni(self, user_id: int, sni_hostname: str,
                              sni_ip: Optional[str] = None) -> bool:
         """Смена SNI-донора в сохранённой установке (ключи VPS не меняются)."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cur = conn.execute(
                 "UPDATE vps_setups SET sni_hostname = ?, sni_ip = ? WHERE user_id = ?",
                 (sni_hostname, sni_ip, user_id),
@@ -399,29 +449,40 @@ class PaymentSystem:
 
     def create_invoice_record(self, invoice_id: str, payment_id: str, user_id: int,
                               chat_id: int, server_ip: Optional[str],
-                              sni_hostname: Optional[str], pay_url: str):
+                              sni_hostname: Optional[str], pay_url: str,
+                              source: str = "crypto"):
         """Сохраняем созданный счёт (для проверки оплаты после перезапуска)"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute("""
                 INSERT OR REPLACE INTO invoices
-                (invoice_id, payment_id, user_id, chat_id, server_ip, sni_hostname, status, pay_url)
-                VALUES (?, ?, ?, ?, ?, ?, 'active', ?)
-            """, (invoice_id, payment_id, user_id, chat_id, server_ip, sni_hostname, pay_url))
+                (invoice_id, payment_id, user_id, chat_id, server_ip, sni_hostname, status, pay_url, source)
+                VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
+            """, (invoice_id, payment_id, user_id, chat_id, server_ip, sni_hostname, pay_url, source))
             conn.commit()
 
     def get_active_invoices(self) -> dict:
         """Все ожидающие оплаты счета: payment_id -> данные"""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute("""
                 SELECT * FROM invoices WHERE status = 'active'
             """).fetchall()
             return {r['payment_id']: dict(r) for r in rows}
 
-    def mark_invoice_paid(self, invoice_id: str):
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("UPDATE invoices SET status = 'paid' WHERE invoice_id = ?", (invoice_id,))
+    def get_invoice_by_payment(self, payment_id: str) -> Optional[dict]:
+        """Счёт по payment_id (для восстановления и проверки после перезапуска)."""
+        with self._connect() as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM invoices WHERE payment_id = ? LIMIT 1", (payment_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def mark_invoice_paid(self, invoice_id: str) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute("UPDATE invoices SET status = 'paid' WHERE invoice_id = ?", (invoice_id,))
             conn.commit()
+            return cur.rowcount > 0
 
 
 class CryptoPayClient:
@@ -463,11 +524,24 @@ class CryptoPayClient:
         })
 
     def get_paid_invoices(self) -> list:
-        """Счета со статусом paid. API возвращает {"items": [...]}."""
-        res = self._post('getInvoices', {'status': 'paid', 'count': 100})
-        if isinstance(res, dict):
-            return res.get('items') or []
-        return res or []
+        """Все оплаченные счета (с пагинацией по 100 и без дубликатов invoice_id)."""
+        items = []
+        seen = set()
+        offset = 0
+        while True:
+            res = self._post('getInvoices', {'status': 'paid', 'count': 100, 'offset': offset})
+            batch = res.get('items') if isinstance(res, dict) else (res or [])
+            if not batch:
+                break
+            for inv in batch:
+                iid = inv.get('invoice_id')
+                if iid not in seen:
+                    seen.add(iid)
+                    items.append(inv)
+            if len(batch) < 100:
+                break
+            offset += len(batch)
+        return items
 
 
 class _CallbackMessage:
@@ -490,6 +564,12 @@ class AutoConfigBot:
         self.sni_db = SNIDatabase()
         self.scanner = SNIScanner(self.sni_db)
         self.crypto_pay = CryptoPayClient(crypto_pay_token) if crypto_pay_token else None
+
+        # Общая блокировка: защищаем user_data / pending_payments / support_forwards
+        # от гонок между фоновым лупом оплат и хендлерами Telegram.
+        self._lock = threading.RLock()
+        # Неудачные доставки: pid -> время, чтобы не крутить одну ошибку каждые 10 секунд
+        self._delivery_backoff = {}
 
         # Состояния пользователей (user_id -> state)
         self.user_states = {}
@@ -566,12 +646,44 @@ class AutoConfigBot:
             except Exception:
                 pass
 
-    def _active_pending_for(self, user_id: int) -> Optional[str]:
-        """payment_id активного (неоплаченного) счёта пользователя или None."""
-        for pid, row in self.payment_system.get_active_invoices().items():
-            if row.get('user_id') == user_id:
-                return pid
-        return None
+    @staticmethod
+    def _is_valid_public_ipv4(text: str) -> bool:
+        """Публичный IPv4: не loopback, не приватный, не link-local, не резервированный."""
+        try:
+            ip = ipaddress.ip_address((text or "").strip())
+        except ValueError:
+            return False
+        if ip.version != 4:
+            return False
+        return (not ip.is_private and not ip.is_loopback
+                and not ip.is_link_local and not ip.is_reserved
+                and not ip.is_multicast and not ip.is_unspecified)
+
+    @staticmethod
+    def _is_valid_hostname(text: str) -> bool:
+        """Допустимое доменное имя для SNI-донора (без пробелов и shell-метасимволов)."""
+        h = (text or "").strip().lower()
+        if not h or len(h) > 253:
+            return False
+        if h.endswith("."):
+            h = h[:-1]
+        if not 0 < h.count(".") < 4:
+            return False
+        return all(
+            re.fullmatch(r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?", part) and len(part) <= 63
+            for part in h.split(".")
+        )
+
+    @staticmethod
+    def _md_escape(text: str) -> str:
+        """Экранирование спецсимволов Telegram Markdown в пользовательских данных."""
+        return re.sub(r'([_*\[\]()~`>#+\-=|{}.!\\])', r'\\\1', str(text))
+
+    @staticmethod
+    def _ssh_env_line(sni_hostname: str, sni_ip: Optional[str]) -> str:
+        """Строка среды для setup_vps.sh: значения в кавычках через shlex,
+        чтобы подставленный hostname/IP не могли выполнить команды на VPS."""
+        return f"export SNI_HOSTNAME={shlex.quote(sni_hostname)} SNI_IP={shlex.quote(sni_ip or '')}\n"
 
     def _pending_over_limit(self, user_id: int) -> bool:
         """True, если у пользователя уже есть разрешённое число активных счетов."""
@@ -776,10 +888,20 @@ class AutoConfigBot:
             reply_markup=self._main_menu_inline_keyboard(),
         )
 
-    def _deliver_dpi_setup(self, chat_id: int, user_id: int, stars: int = 0) -> bool:
+    def _deliver_dpi_setup(self, chat_id: int, user_id: int, stars: int = 0,
+                           payment_id: Optional[str] = None) -> bool:
         """Услуга «Ютуб/Дискорд/Инстаграм/ТикТок Твиттер БЕЗ сервера» (Zapret/NFQWS).
         После оплаты просто присылаем установочный скрипт + понятную инструкцию.
-        Никакой VPS, IP и SSH не нужно — роутер обходит замедления сам."""
+        Никакой VPS, IP и SSH не нужно — роутер обходит замедления сам.
+        Идемпотентно: для оплаченного payment_id скрипт отправляется один раз."""
+        if payment_id and self.payment_system.find_paid_order(payment_id):
+            self.bot.send_message(
+                chat_id,
+                "✅ Настройка по этому платежу уже была отправлена. Если файл потерялся — "
+                "напишите в /support, пришлём повторно.",
+                reply_markup=self._main_menu_inline_keyboard()
+            )
+            return True
         script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "setup_nfqws.sh")
         if not os.path.exists(script_path):
             self.bot.send_message(
@@ -819,6 +941,17 @@ class AutoConfigBot:
                 "а сложный случай передам человеку.",
                 reply_markup=self._main_menu_inline_keyboard()
             )
+            # Заказ в БД (идемпотентно): DPI — это товар без сервера и ключей.
+            if payment_id:
+                order_id = self.payment_system.create_order(
+                    payment_id=payment_id,
+                    user_id=user_id,
+                    config_path="setup_nfqws.sh",
+                    server_ip=None,
+                    uuid=None,
+                    sni_hostname=None,
+                )
+                self.payment_system.mark_order_delivered(order_id)
             return True
         except Exception as e:
             logger.error("Ошибка доставки настройки NFQWS: %s", e)
@@ -839,6 +972,10 @@ class AutoConfigBot:
                 )
                 self.support_forwards[fwd.message_id] = (message.from_user.id, message.chat.id)
                 forwarded = True
+                # Не даём карте сообщений расти бесконечно
+                if len(self.support_forwards) > 1000:
+                    for k in list(self.support_forwards)[:500]:
+                        self.support_forwards.pop(k, None)
             except Exception as e:
                 logger.error("Не удалось переслать вопрос владельцу %s: %s", admin_id, e)
         return forwarded
@@ -855,6 +992,9 @@ class AutoConfigBot:
         try:
             self.bot.send_message(chat_id, f"📩 *Ответ поддержки:*\n{message.text}")
             self.bot.send_message(message.chat.id, f"✉️ Ответ отправлен пользователю {user_id}.")
+            # Тикет отработан — убираем, чтобы карта не разрасталась
+            with self._lock:
+                self.support_forwards.pop(reply.message_id, None)
             return True
         except Exception as e:
             logger.error("Не удалось доставить ответ пользователю %s: %s", user_id, e)
@@ -1000,14 +1140,12 @@ class AutoConfigBot:
                 self._notify_slow(message.chat.id, user_id)
                 return
             
-            # Простая валидация IP
-            import re
-            ip_pattern = r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
-            
-            if not re.match(ip_pattern, server_ip):
+            # Валидация публичного IPv4 (не private/loopback/link-local/мультикаст/999.999.999.999)
+            if not self._is_valid_public_ipv4(server_ip):
                 self.bot.send_message(
                     message.chat.id,
-                    "❌ Неверный формат IP адреса. Введите правильный IP (например: 123.45.67.89):"
+                    "❌ Похоже, это не публичный IP сервера. Введите публичный IPv4 "
+                    "(например: 123.45.67.89) — адрес из письма провайдера:"
                 )
                 return
             
@@ -1032,7 +1170,7 @@ class AutoConfigBot:
             # Показываем информацию о доноре
             donor_info = f"""
 ✅ Найден рабочий SNI-донор:
-• Маскировка: `{donor['hostname']}`
+• Маскировка: `{self._md_escape(donor['hostname'])}`
 • Страна: {donor['country_code']}
 • Успешность: {donor['success_rate']:.0%}
 
@@ -1086,7 +1224,8 @@ class AutoConfigBot:
                 "⏳ Подключаюсь к вашему VPS и ставлю Xray... Это занимает 1-3 минуты."
             )
             ud = self.user_data.setdefault(user_id, {})
-            ud['ssh_password'] = password
+            with self._lock:
+                ud['ssh_password'] = password
             threading.Thread(
                 target=self._run_ssh_install,
                 args=(user_id, message.chat.id, password, ud),
@@ -1161,21 +1300,22 @@ class AutoConfigBot:
                     )
                     invoice_id = invoice["invoice_id"]
                     pay_url = invoice["pay_url"]
-                    self.pending_payments[payment_id] = {
-                        "payment_id": payment_id,
-                        "user_id": user_id,
-                        "chat_id": call.message.chat.id,
-                        "pay_url": pay_url,
-                    }
-                    self.payment_system.create_invoice_record(
-                        invoice_id=invoice_id,
-                        payment_id=payment_id,
-                        user_id=user_id,
-                        chat_id=call.message.chat.id,
-                        server_ip=None,
-                        sni_hostname=None,
-                        pay_url=pay_url,
-                    )
+                    with self._lock:
+                        self.pending_payments[payment_id] = {
+                            "payment_id": payment_id,
+                            "user_id": user_id,
+                            "chat_id": call.message.chat.id,
+                            "pay_url": pay_url,
+                        }
+                        self.payment_system.create_invoice_record(
+                            invoice_id=invoice_id,
+                            payment_id=payment_id,
+                            user_id=user_id,
+                            chat_id=call.message.chat.id,
+                            server_ip=None,
+                            sni_hostname=None,
+                            pay_url=pay_url,
+                        )
                     markup = types.InlineKeyboardMarkup()
                     markup.add(types.InlineKeyboardButton("💳 Оплатить в Crypto Bot", url=pay_url))
                     self.bot.send_message(
@@ -1210,6 +1350,18 @@ class AutoConfigBot:
                     label="БелыйОбходчик — обход DPI без сервера",
                     amount=DPI_STARS_PRICE,
                 )]
+                # Запоминаем звёздный счёт в БД: после перезапуска бот сможет его найти
+                with self._lock:
+                    self.payment_system.create_invoice_record(
+                        invoice_id=f"stars_dpi_{payment_id}",
+                        payment_id=payment_id,
+                        user_id=user_id,
+                        chat_id=call.message.chat.id,
+                        server_ip=None,
+                        sni_hostname=None,
+                        pay_url="",
+                        source="stars",
+                    )
                 self.bot.send_invoice(
                     call.message.chat.id,
                     "БелыйОбходчик — обход DPI без сервера",
@@ -1246,32 +1398,33 @@ class AutoConfigBot:
                     return
 
                 try:
-                    ud = self.user_data.get(user_id, {})
-                    invoice = self.crypto_pay.create_invoice(
-                        amount_rub=VPS_RUB_PRICE,
-                        payload=payment_id,
-                    )
-                    invoice_id = invoice['invoice_id']
-                    pay_url = invoice['pay_url']
+                    with self._lock:
+                        ud = self.user_data.get(user_id, {})
+                        invoice = self.crypto_pay.create_invoice(
+                            amount_rub=VPS_RUB_PRICE,
+                            payload=payment_id,
+                        )
+                        invoice_id = invoice['invoice_id']
+                        pay_url = invoice['pay_url']
 
-                    # Запоминаем ожидание оплаты
-                    self.pending_payments[payment_id] = {
-                        'payment_id': payment_id,
-                        'user_id': user_id,
-                        'chat_id': call.message.chat.id,
-                        'server_ip': ud.get('server_ip'),
-                        'sni_hostname': ud.get('sni_hostname'),
-                        'pay_url': pay_url,
-                    }
-                    self.payment_system.create_invoice_record(
-                        invoice_id=invoice_id,
-                        payment_id=payment_id,
-                        user_id=user_id,
-                        chat_id=call.message.chat.id,
-                        server_ip=ud.get('server_ip'),
-                        sni_hostname=ud.get('sni_hostname'),
-                        pay_url=pay_url,
-                    )
+                        # Запоминаем ожидание оплаты
+                        self.pending_payments[payment_id] = {
+                            'payment_id': payment_id,
+                            'user_id': user_id,
+                            'chat_id': call.message.chat.id,
+                            'server_ip': ud.get('server_ip'),
+                            'sni_hostname': ud.get('sni_hostname'),
+                            'pay_url': pay_url,
+                        }
+                        self.payment_system.create_invoice_record(
+                            invoice_id=invoice_id,
+                            payment_id=payment_id,
+                            user_id=user_id,
+                            chat_id=call.message.chat.id,
+                            server_ip=ud.get('server_ip'),
+                            sni_hostname=ud.get('sni_hostname'),
+                            pay_url=pay_url,
+                        )
 
                     markup = types.InlineKeyboardMarkup()
                     markup.add(types.InlineKeyboardButton("💳 Оплатить в CryptoBot", url=pay_url))
@@ -1304,6 +1457,20 @@ class AutoConfigBot:
                             reply_markup=self._main_menu_inline_keyboard(),
                         )
                     return
+                with self._lock:
+                    ud = self.user_data.get(user_id, {})
+                    # Запоминаем звёздный счёт в БД вместе с IP сервера и SNI-донором:
+                    # после перезапуска бот найдёт заказ по payment_id и доведёт доставку.
+                    self.payment_system.create_invoice_record(
+                        invoice_id=f"stars_{payment_id}",
+                        payment_id=payment_id,
+                        user_id=user_id,
+                        chat_id=call.message.chat.id,
+                        server_ip=ud.get('server_ip'),
+                        sni_hostname=ud.get('sni_hostname'),
+                        pay_url="",
+                        source="stars",
+                    )
                 prices = [types.LabeledPrice(
                     label="БелыйОбходчик — автоматическая настройка",
                     amount=STARS_PRICE,
@@ -1338,8 +1505,8 @@ class AutoConfigBot:
                             f"1. Скачайте и загрузите `setup_vps.sh` на свой VPS\n"
                             f"2. Выполните:\n"
                             f"`chmod +x setup_vps.sh`\n"
-                            f"`sudo SNI_HOSTNAME={sni_hostname} bash setup_vps.sh`\n"
-                            + (f"Или с указанием IP донора:\n`sudo SNI_HOSTNAME={sni_hostname} SNI_IP={sni_ip} bash setup_vps.sh`\n\n" if sni_ip else "")
+                            f"`sudo SNI_HOSTNAME='{sni_hostname}' bash setup_vps.sh`\n"
+                            + (f"Или с указанием IP донора:\n`sudo SNI_HOSTNAME='{sni_hostname}' SNI_IP='{sni_ip}' bash setup_vps.sh`\n\n" if sni_ip else "")
                             + "3. Пришлите сюда ВЕСЬ вывод блоком `===BELIY-OBHODCHIK-VLESS===` ... `===END===`\n"
                         )
                     )
@@ -1406,7 +1573,8 @@ class AutoConfigBot:
             elif call.data.startswith("update_"):
                 order_id = call.data.replace("update_", "")
                 order = self.payment_system.get_order(order_id)
-                if not order:
+                if not order or order.get('user_id') != user_id:
+                    # Чужой/несуществующий заказ — IDOR-защита: не даём тронуть чужие конфиги
                     self._show_welcome(call.message.chat.id)
                     return
                 setup = self.payment_system.get_vps_setup(user_id)
@@ -1436,7 +1604,7 @@ class AutoConfigBot:
                 }
                 self.bot.send_message(
                     call.message.chat.id,
-                    f"🔄 Обновляю конфиг на новый SNI-донор: `{donor['hostname']}` "
+                    f"🔄 Обновляю конфиг на новый SNI-донор: `{self._md_escape(donor['hostname'])}` "
                     f"(успешность {donor['success_rate']:.0%})...",
                     parse_mode='Markdown',
                 )
@@ -1447,7 +1615,7 @@ class AutoConfigBot:
                     self.bot.send_message(
                         call.message.chat.id,
                         f"✅ *Конфиг обновлён и отправлен!*\n\n"
-                        f"• Новый донор: `{donor['hostname']}`\n"
+                        f"• Новый донор: `{self._md_escape(donor['hostname'])}`\n"
                         f"• Страна: {donor['country_code']}\n"
 f"• Успешность: {donor['success_rate']:.0%}\n\n"
                     f"Загрузите новый архив в роутер Keenetic (вместо старого).",
@@ -1508,11 +1676,13 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
             for order in orders:
                 status_emoji = "✅" if order['payment_status'] == 'paid' else "⏳"
                 delivered_emoji = "📨" if order['delivered_at'] else "📭"
+                server_ip = order['server_ip'] or '— (без сервера)'
+                sni = order['sni_hostname'] or '—'
                 
                 response += f"""
 {status_emoji} *Заказ {order['order_id'][:8]}...*
-• Сервер: {order['server_ip']}
-• SNI: `{order['sni_hostname']}`
+• Сервер: {server_ip}
+• SNI: `{sni}`
 • Статус оплаты: {order['payment_status']}
 • Создан: {order['created_at'][:10]}
 • Доставлен: {delivered_emoji}
@@ -1643,8 +1813,6 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
                 services="\n".join(f"• *{name}* — {desc}" for name, desc in ADDITIONAL_SERVICES),
             )
             self.bot.send_message(message.chat.id, guide_text, parse_mode='Markdown', disable_web_page_preview=True, reply_markup=self._main_menu_inline_keyboard())
-            
-            self.bot.send_message(message.chat.id, _build_status_text(self), parse_mode='Markdown', reply_markup=self._main_menu_inline_keyboard())
         
         def _build_status_text(self) -> str:
             """Текст состояния системы: SNI-доноры и лучший донор."""
@@ -1674,12 +1842,15 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
         
         @self.bot.message_handler(commands=['status'])
         def send_status(message):
-            """Состояние системы (SNI-доноры)."""
+            """Состояние системы (SNI-доноры). Только для владельцев."""
             if not self._guard_message(message):
                 return
             user_id = message.from_user.id
             if self._antiflood(user_id, COMMAND_COOLDOWN):
                 self._notify_slow(message.chat.id, user_id)
+                return
+            if ADMIN_USER_IDS and user_id not in ADMIN_USER_IDS:
+                self._show_welcome(message.chat.id)
                 return
             self.bot.send_message(message.chat.id, _build_status_text(self), parse_mode='Markdown', reply_markup=self._main_menu_inline_keyboard())
         
@@ -1749,10 +1920,13 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
 
         @self.bot.message_handler(commands=['test'])
         def test_generation(message):
-            """Тестовая команда для генерации конфига"""
+            """Тестовая команда для генерации конфига (только для владельцев)."""
             if not self._guard_message(message):
                 return
             user_id = message.from_user.id
+            if ADMIN_USER_IDS and user_id not in ADMIN_USER_IDS:
+                self._show_welcome(message.chat.id)
+                return
             if self._antiflood(user_id, COMMAND_COOLDOWN * 3):
                 self._notify_slow(message.chat.id, user_id)
                 return
@@ -1808,9 +1982,8 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
                 users_total = one("SELECT COUNT(DISTINCT user_id) FROM payments")
                 invoices_active = one("SELECT COUNT(*) FROM invoices WHERE status='active'")
                 setups_total = one("SELECT COUNT(*) FROM vps_setups")
-                revenue_rub = one("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status='paid'")
-                stars_paid = one("SELECT COUNT(*) FROM payments WHERE status='paid'")  # заглушка
-                revenue_stars = one("SELECT COUNT(*) FROM orders WHERE delivered_at IS NOT NULL") * STARS_PRICE
+                revenue_rub = one("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status='paid' AND (source IS NULL OR source != 'stars')")
+                revenue_stars = one("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status='paid' AND source = 'stars'")
                 conn.close()
             except Exception as e:
                 logger.error("Ошибка /stats: %s", e)
@@ -1842,13 +2015,16 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
         
         @self.bot.message_handler(content_types=["successful_payment"])
         def handle_successful_payment(message):
-            """После оплаты звёздами сразу доставляем конфиг."""
+            """После оплаты звёздами сразу доставляем конфиг.
+            Идемпотентно: дубликат уведомления не приводит к повторной выдаче."""
+            if not self._guard_message(message):
+                return
             user_id = message.from_user.id
-            payload = message.successful_payment.invoice_payload
+            payload = str(message.successful_payment.invoice_payload)
             stars = message.successful_payment.total_amount // 1
-            
+
             # ===== Услуга «Без сервера» (обход Ютуб/Дискорд/Инстаграм/ТикТок через Zapret) =====
-            if str(payload).startswith("dpi_"):
+            if payload.startswith("dpi_"):
                 if stars < DPI_STARS_PRICE:
                     self.bot.send_message(
                         message.chat.id,
@@ -1857,43 +2033,87 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
                         reply_markup=self._main_menu_inline_keyboard()
                     )
                     return
-                self.payment_system.confirm_payment(str(payload))
-                self._deliver_dpi_setup(message.chat.id, user_id, stars)
+                with self._lock:
+                    try:
+                        self.payment_system.mark_payment_stars(payload, DPI_STARS_PRICE)
+                        self.payment_system.confirm_payment(payload)
+                        if not self._deliver_dpi_setup(message.chat.id, user_id, stars, payment_id=payload):
+                            return
+                        inv = self.payment_system.get_invoice_by_payment(payload)
+                        if inv:
+                            self.payment_system.mark_invoice_paid(inv['invoice_id'])
+                    except Exception as e:
+                        logger.error("Ошибка доставки DPI после оплаты звёздами: %s", e)
                 return
-            
-            ud = self.user_data.get(user_id, {})
-            if ud.get('payment_id') != payload:
-                self.bot.send_message(
-                    message.chat.id,
-                    f"✅ Оплата {stars} ⭐ получена! Обратитесь к поддержке: @beliy_obhodchik_support_bot",
-                    reply_markup=self._main_menu_inline_keyboard()
-                )
-                return
-            
-            try:
-                self.payment_system.confirm_payment(payload)
-                if not self._offer_install_choice(user_id, message.chat.id):
-                    ok = self.generate_and_send_config(user_id, message.chat.id)
-                    if ok:
-                        self.bot.send_message(
-                            message.chat.id,
-                            f"✅ *Оплата {stars} ⭐ подтверждена!* Конфиг сформирован и отправлен выше.",
-                            parse_mode='Markdown',
-                            reply_markup=self._main_menu_inline_keyboard()
-                        )
-                    else:
-                        self.bot.send_message(
-                            message.chat.id,
-                            "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support_bot",
-                            reply_markup=self._main_menu_inline_keyboard()
-                        )
-            except Exception as e:
-                logger.error("Ошибка доставки после оплаты звёздами: %s", e)
-                self.bot.send_message(
-                    message.chat.id,
-                    "❌ Произошла ошибка. Платеж получен, напишите в поддержку: @beliy_obhodchik_support_bot",
-                    reply_markup=self._main_menu_inline_keyboard()
-                )
+
+            # ===== VPS + звёзды =====
+            with self._lock:
+                # После рестарта user_data пуст, но счёт со IP/SNI сохранён в БД при pay_stars
+                inv = self.payment_system.get_invoice_by_payment(payload)
+                ud = self.user_data.get(user_id, {})
+                if not inv and ud.get('payment_id') != payload:
+                    self.bot.send_message(
+                        message.chat.id,
+                        f"✅ Оплата {stars} ⭐ получена! Продолжите с /buy или напишите поддержке: @beliy_obhodchik_support_bot",
+                        reply_markup=self._main_menu_inline_keyboard()
+                    )
+                    return
+
+                # Уже доставляли по этому платежу — не дублируем
+                if self.payment_system.find_paid_order(payload):
+                    self.bot.send_message(
+                        message.chat.id,
+                        f"✅ Оплата {stars} ⭐ по этому платежу уже была принята ранее. "
+                        "Конфиг/скрипт отправлялись выше. Нужен повторно — напишите в /support.",
+                        reply_markup=self._main_menu_inline_keyboard()
+                    )
+                    return
+
+                # Достаём параметры доставки: из счёта в БД или из user_data
+                data = {
+                    'payment_id': payload,
+                    'user_id': user_id,
+                    'chat_id': message.chat.id,
+                    'server_ip': (inv or ud).get('server_ip') if (inv or ud) else None,
+                    'sni_hostname': (inv or ud).get('sni_hostname') if (inv or ud) else None,
+                }
+                if not data['server_ip'] or not data['sni_hostname']:
+                    self.bot.send_message(
+                        message.chat.id,
+                        f"✅ Оплата {stars} ⭐ получена! Данные сервера не найдены после перезапуска. "
+                        "Начните снова с /buy — повторная оплата не потребуется, напишите поддержке: @beliy_obhodchik_support_bot",
+                        reply_markup=self._main_menu_inline_keyboard()
+                    )
+                    return
+
+                try:
+                    self.payment_system.mark_payment_stars(payload, STARS_PRICE)
+                    self.payment_system.confirm_payment(payload)
+                    self.user_data[user_id] = data
+                    if not self._offer_install_choice(user_id, message.chat.id):
+                        ok = self.generate_and_send_config(user_id, message.chat.id, data=data)
+                        if ok:
+                            self.bot.send_message(
+                                message.chat.id,
+                                f"✅ *Оплата {stars} ⭐ подтверждена!* Конфиг сформирован и отправлен выше.",
+                                parse_mode='Markdown',
+                                reply_markup=self._main_menu_inline_keyboard()
+                            )
+                        else:
+                            self.bot.send_message(
+                                message.chat.id,
+                                "❌ Не удалось сформировать конфиг. Напишите в поддержку: @beliy_obhodchik_support_bot",
+                                reply_markup=self._main_menu_inline_keyboard()
+                            )
+                    if inv:
+                        self.payment_system.mark_invoice_paid(inv['invoice_id'])
+                except Exception as e:
+                    logger.error("Ошибка доставки после оплаты звёздами: %s", e)
+                    self.bot.send_message(
+                        message.chat.id,
+                        "❌ Произошла ошибка. Платёж получен, напишите в поддержку: @beliy_obhodchik_support_bot",
+                        reply_markup=self._main_menu_inline_keyboard()
+                    )
 
         @self.bot.message_handler(func=lambda m: m.text and m.text.startswith('/'))
         def handle_unknown_command(message):
@@ -1907,7 +2127,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
             command = (message.text or '').split()[0]
             self.bot.send_message(
                 message.chat.id,
-                f"🤔 Не знаю команду `{command}`. Вот что я умею:",
+                f"🤔 Не знаю команду `{self._md_escape(command)}`. Вот что я умею:",
                 parse_mode='Markdown',
                 reply_markup=self._main_menu_inline_keyboard(),
             )
@@ -1959,7 +2179,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
                     sni_hostname=user_data['sni_hostname']
                 )
             
-            # Создаём заказ в базе
+            # Создаём заказ в базе (идемпотентно: повтор гонки не плодит дубли)
             order_id = self.payment_system.create_order(
                 payment_id=user_data['payment_id'],
                 user_id=user_id,
@@ -1978,11 +2198,11 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
 ✅ *Ваш заказ готов!*
 
 📦 *Данные заказа:*
-• ID заказа: `{order_id}`
-• Сервер: {user_data['server_ip']}
-• SNI донор: `{user_data['sni_hostname']}`
-• UUID: `{params['uuid']}`
-• Short ID: `{params['short_id']}`
+• ID заказа: `{self._md_escape(order_id)}`
+• Сервер: {self._md_escape(user_data['server_ip'])}
+• SNI донор: `{self._md_escape(user_data['sni_hostname'])}`
+• UUID: `{self._md_escape(params['uuid'])}`
+• Short ID: `{self._md_escape(params['short_id'])}`
 
 📁 *Архив содержит:*
 1. Конфигурация для Xray (`xray_client.json`)
@@ -2017,11 +2237,16 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
             self.payment_system.mark_order_delivered(order_id)
             
             # Сбрасываем состояние пользователя
-            self.user_states[user_id] = None
-            self.user_data[user_id] = {}
+            with self._lock:
+                self.user_states[user_id] = None
+                if data is None:
+                    self.user_data[user_id] = {}
             
             # Удаляем временный файл
-            os.remove(archive_path)
+            try:
+                os.remove(archive_path)
+            except OSError:
+                pass
             
             logger.info(f"Конфиг отправлен пользователю {user_id}, заказ {order_id}")
             return True
@@ -2040,6 +2265,11 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
         while True:
             time.sleep(10)
             if not self.crypto_pay or not self.pending_payments:
+                # Подчищаем старые откаты, чтобы словарь не рос бесконечно
+                cutoff = time.monotonic() - 3600
+                self._delivery_backoff = {
+                    k: v for k, v in self._delivery_backoff.items() if v > cutoff
+                }
                 continue
             try:
                 paid = self.crypto_pay.get_paid_invoices()
@@ -2049,29 +2279,65 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
             self._process_paid_invoices(paid)
 
     def _process_paid_invoices(self, paid: list):
-        """Доставка конфигов по оплаченным счетам."""
+        """Доставка конфигов по оплаченным счетам (крипто).
+        Идемпотентность: каждый payment_id берётся из очереди ровно один раз;
+        заказы создаются идемпотентно; «paid» ставим только после успешной доставки.
+        Сверка суммы: не доставляем конфиг, если пришла другая сумма/валюта."""
         for inv in paid:
             pid = (inv or {}).get('payload') or ''
-            rec = self.pending_payments.pop(pid, None)
-            if not rec:
+            if not pid:
                 continue
-            try:
-                self.payment_system.confirm_payment(rec['payment_id'])
-                self.user_data[rec['user_id']] = rec
-                if str(pid).startswith('dpi_'):
-                    ok = self._deliver_dpi_setup(rec['chat_id'], rec['user_id'], stars=rec.get('stars'))
-                else:
-                    if not self._offer_install_choice(rec['user_id'], rec['chat_id']):
-                        ok = self.generate_and_send_config(
-                            rec['user_id'], rec['chat_id'], data=rec
+            # Откат после ошибки: не долбим Crypto Bot каждые 10 секунд
+            last_fail = self._delivery_backoff.get(pid, 0)
+            if time.monotonic() - last_fail < 60:
+                continue
+            with self._lock:
+                if pid not in self.pending_payments:
+                    continue
+                rec = self.pending_payments.pop(pid, None)
+                if not rec:
+                    continue
+                try:
+                    # Сверка суммы и валюты с тем, что мы выставили
+                    pay_row = self.payment_system.get_payment(rec['payment_id'])
+                    expected = (pay_row or {}).get('amount')
+                    got = inv.get('amount')
+                    if expected and got and int(got) != int(expected):
+                        logger.error(
+                            "Сумма не сходится для %s: ожидали %s, пришли %s — доставка отменена",
+                            pid, expected, got,
                         )
-                        if not ok:
-                            self.pending_payments[pid] = rec
-                self.payment_system.mark_invoice_paid(inv.get('invoice_id', ''))
-                logger.info("Оплата %s подтверждена, конфиг отправлен", pid)
-            except Exception as e:
-                logger.error("Ошибка доставки после оплаты %s: %s", pid, e)
-                self.pending_payments[pid] = rec
+                        self._delivery_backoff[pid] = time.monotonic()
+                        continue
+                    if not pay_row:
+                        logger.error("Нет платежа в БД для %s", pid)
+                        continue
+
+                    self.payment_system.confirm_payment(rec['payment_id'])
+                    self.user_data[rec['user_id']] = rec
+                    ok = False
+                    if str(pid).startswith('dpi_'):
+                        ok = self._deliver_dpi_setup(rec['chat_id'], rec['user_id'],
+                                                     stars=rec.get('stars'), payment_id=pid)
+                    else:
+                        if not self._offer_install_choice(rec['user_id'], rec['chat_id']):
+                            ok = self.generate_and_send_config(
+                                rec['user_id'], rec['chat_id'], data=rec
+                            )
+                        else:
+                            # Показали кнопки установки — деньги получены, товар в работе
+                            ok = True
+                    if ok:
+                        self.payment_system.mark_invoice_paid(inv.get('invoice_id', ''))
+                        logger.info("Оплата %s подтверждена, доставка выполнена", pid)
+                    else:
+                        # Доставка сорвалась — вернём в очередь позже (backoff 60 сек)
+                        self.pending_payments[pid] = rec
+                        self._delivery_backoff[pid] = time.monotonic()
+                except Exception as e:
+                    logger.error("Ошибка доставки после оплаты %s: %s", pid, e)
+                    self.pending_payments[pid] = rec
+                    self._delivery_backoff[pid] = time.monotonic()
 
     def _offer_install_choice(self, user_id: int, chat_id: int) -> bool:
         """Если реальных ключей ещё нет — предлагаем выбрать способ установки.
@@ -2121,6 +2387,18 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
         need = {'SERVER_IP', 'UUID', 'PUBLIC_KEY', 'SHORT_ID', 'SNI_HOSTNAME'}
         if not need.issubset(set(data)):
             return None
+        # Не принимаем мусор: публичный IPv4, валидный hostname, базовый формат ключей
+        if not self._is_valid_public_ipv4(data.get('SERVER_IP', '')):
+            return None
+        if not self._is_valid_hostname(data.get('SNI_HOSTNAME', '')):
+            return None
+        if not re.fullmatch(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+                            r'[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', data.get('UUID', '')):
+            return None
+        if not re.fullmatch(r'[A-Za-z0-9+/=]{20,120}', data.get('PUBLIC_KEY', '')):
+            return None
+        if not re.fullmatch(r'[0-9a-fA-F]{4,16}', data.get('SHORT_ID', '').split(':')[0]):
+            return None
         return data
 
     def _save_setup_and_deliver(self, user_id: int, chat_id: int, parsed: dict,
@@ -2165,11 +2443,22 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
             self._show_welcome(chat_id)
             self.user_states[user_id] = None
             return
+        # Защита от инъекции: только публичный IPv4 и валидный hostname
+        if not self._is_valid_public_ipv4(server_ip) or not self._is_valid_hostname(sni_hostname):
+            logger.error("SSH-установка отклонена: невалидный IP/SNI (user=%s)", user_id)
+            self.bot.send_message(
+                chat_id,
+                "❌ Невалидный IP сервера или SNI-донор. Начните заказ заново через /buy.",
+                reply_markup=self._main_menu_inline_keyboard(),
+            )
+            self.user_states[user_id] = None
+            return
         script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "setup_vps.sh")
         if not os.path.exists(script_path):
             self.bot.send_message(chat_id, "❌ Скрипт setup_vps.sh не найден на сервере бота.", reply_markup=self._main_menu_inline_keyboard())
             self.user_states[user_id] = None
             return
+        cli = None
         try:
             cli = paramiko.SSHClient()
             cli.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -2180,11 +2469,10 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
             )
             with cli.open_sftp() as sftp:
                 sftp.put(script_path, "/tmp/setup_vps.sh")
-            env = f"export SNI_HOSTNAME={sni_hostname} SNI_IP={sni_ip or ''}\n"
+            env = self._ssh_env_line(sni_hostname, sni_ip)
             cmd = f"{env} bash /tmp/setup_vps.sh 2>&1"
             stdin, stdout, stderr = cli.exec_command(cmd, timeout=240)
             out = stdout.read().decode('utf-8', errors='replace')
-            cli.close()
             parsed = self._parse_vps_output(out)
             if not parsed:
                 logger.error("SSH-установка не вернула блок параметров. Вывод: %s", out[-600:])
@@ -2200,6 +2488,9 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
                                          sni_hostname=sni_hostname,
                                          sni_ip=sni_ip,
                                          install_method="ssh")
+            # Успех: пароль root дальше не нужен, убираем из памяти
+            with self._lock:
+                ud.pop('ssh_password', None)
         except paramiko.AuthenticationException as e:
             logger.error("SSH-ошибка авторизации для %s (%s): %s", user_id, server_ip, e)
             markup = types.InlineKeyboardMarkup()
@@ -2228,6 +2519,12 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
                 reply_markup=self._main_menu_inline_keyboard(),
             )
             self.user_states[user_id] = None
+        finally:
+            if cli is not None:
+                try:
+                    cli.close()
+                except Exception:
+                    pass
 
     @staticmethod
     def _vps_recommendations_text() -> str:
@@ -2282,24 +2579,6 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
             except Exception as e:
                 logger.error("Поллинг завершился с ошибкой, перезапуск через 10 сек: %s", e)
                 time.sleep(10)
-
-
-def create_demo_bot():
-    """Создание демо-версии бота"""
-    
-    # Создаём фейкового бота для демонстрации
-    class DemoBot:
-        def __init__(self):
-            self.commands = {
-                '/start': 'Начало работы',
-                '/buy': 'Купить автоматическую настройку',
-                '/myorders': 'Мои заказы',
-                '/status': 'Статус системы',
-                '/test': 'Тестовая генерация',
-                '/help': 'Помощь'
-            }
-    
-    return DemoBot()
 
 
 def main():

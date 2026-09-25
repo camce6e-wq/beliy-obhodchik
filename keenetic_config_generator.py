@@ -8,6 +8,7 @@ import json
 import base64
 import zipfile
 import tempfile
+import os
 from typing import Dict, List
 from datetime import datetime
 
@@ -351,8 +352,9 @@ system configuration save
     def create_complete_package(self, output_path: str = None) -> str:
         """Создание полного пакета конфигураций для пользователя"""
         
-        if not output_path:
-            output_path = tempfile.mktemp(suffix='.zip')
+        # Безопасный временный файл (mkstemp вместо небезопасного mktemp)
+        fd, output_path = tempfile.mkstemp(suffix='.zip', prefix='config_')
+        os.close(fd)
         
         with zipfile.ZipFile(output_path, 'w') as zipf:
             # 1. Конфиг Xray
@@ -528,21 +530,25 @@ FAQ: https://your-domain.com/faq
 
 
 def quick_generate(server_ip: str, sni_hostname: str, sni_ip: str = None):
-    """Быстрая генерация конфигурации с автоматическими параметрами"""
+    """Быстрая генерация конфигурации с автоматическими параметрами.
+    Публичный ключ — настоящий x25519 (32 байта в base64), чтобы Reality
+    на сервере и в клиенте совпадали после обмена ключами."""
     
     import uuid
-    import secrets
+    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
     
-    # Генерируем случайные параметры
-    generated_uuid = str(uuid.uuid4())
-    public_key = base64.b64encode(secrets.token_bytes(32)).decode('utf-8')
-    short_id = secrets.token_hex(4)
+    # Параметры Reality: приватный ключ остаётся на сервере (setup_vps.sh),
+    # клиенту отдаём его публичную часть.
+    private_key = X25519PrivateKey.generate()
+    public_bytes = private_key.public_key().public_bytes_raw()
+    public_key = base64.b64encode(public_bytes).decode('ascii')
+    short_id = uuid.uuid4().hex[:8]
     
     # Создаём генератор
     generator = KeeneticConfigGenerator(
         server_ip=server_ip,
         server_port=443,
-        uuid=generated_uuid,
+        uuid=str(uuid.uuid4()),
         sni_hostname=sni_hostname,
         public_key=public_key,
         short_id=short_id
@@ -553,7 +559,7 @@ def quick_generate(server_ip: str, sni_hostname: str, sni_ip: str = None):
     
     return archive_path, {
         'server_ip': server_ip,
-        'uuid': generated_uuid,
+        'uuid': generator.uuid,
         'sni_hostname': sni_hostname,
         'public_key': public_key,
         'short_id': short_id

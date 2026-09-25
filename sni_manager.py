@@ -7,12 +7,10 @@
 import sqlite3
 import logging
 import time
-from datetime import datetime, timedelta
+import os
 from typing import List, Dict, Optional
-import random
 import socket
 import ssl
-import ipaddress
 
 # Настройка логирования
 logging.basicConfig(
@@ -21,17 +19,34 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Известные CDN-суффиксы/подстроки для честной (детерминированной) пометки доноров.
+CDN_MARKERS = (
+    "cloudfront", "cloudflare", "fastly", "cdn", "akamai", "edgekey",
+    "amazonaws", "googleusercontent", "azureedge", "netlify",
+)
+
+# Хостом, чей TLS-сертификат выдан именно на них, можно маскировать трафик.
+# Для Reality подходят обычные сайты с валидным сертификатом на 443.
+
 class SNIDatabase:
     """Класс для работы с базой SNI-доноров"""
     
-    def __init__(self, db_path: str = "sni_database.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        self.db_path = db_path or os.environ.get('SNI_DB_PATH') or os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "sni_database.db")
         self.init_database()
+    
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path, timeout=10)
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
     
     def init_database(self):
         """Инициализация базы данных"""
-        with sqlite3.connect(self.db_path) as conn:
-            with open('database_schema.sql', 'r', encoding='utf-8') as f:
+        schema_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database_schema.sql')
+        with self._connect() as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            with open(schema_path, 'r', encoding='utf-8') as f:
                 schema = f.read()
             conn.executescript(schema)
             logger.info(f"База данных инициализирована: {self.db_path}")
@@ -39,23 +54,42 @@ class SNIDatabase:
     def add_donor(self, hostname: str, ip_address: str, 
                   country_code: str = None, tls_version: str = None,
                   http_version: str = None, certificate_issuer: str = None,
-                  has_cdn: bool = False, tags: List[str] = None):
-        """Добавление нового SNI-донора"""
+                  has_cdn: bool = None, tags: List[str] = None):
+        """Добавление нового SNI-донора.
+        При повторном добавлении того же hostname обновляем только сведения о TLS/CDN
+        и НЕ сбрасываем накопленную статистику (success_rate/проверки)."""
         
         tags_str = ','.join(tags) if tags else ''
         
-        with sqlite3.connect(self.db_path) as conn:
+        # Честно определяем CDN по имени хоста, если не сказано явно
+        if has_cdn is None:
+            has_cdn = any(m in hostname.lower() for m in CDN_MARKERS)
+        
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT OR REPLACE INTO sni_donors 
+                INSERT INTO sni_donors 
                 (hostname, ip_address, country_code, tls_version, http_version,
                  certificate_issuer, has_cdn, tags, last_checked)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(hostname) DO UPDATE SET
+                    ip_address = excluded.ip_address,
+                    country_code = excluded.country_code,
+                    tls_version = excluded.tls_version,
+                    http_version = excluded.http_version,
+                    certificate_issuer = excluded.certificate_issuer,
+                    has_cdn = excluded.has_cdn,
+                    tags = excluded.tags,
+                    last_checked = CURRENT_TIMESTAMP
             """, (hostname, ip_address, country_code, tls_version, 
                   http_version, certificate_issuer, has_cdn, tags_str))
             
             donor_id = cursor.lastrowid
-            logger.info(f"Добавлен донор: {hostname} ({ip_address})")
+            if cursor.rowcount == 1:
+                logger.info(f"Добавлен донор: {hostname} ({ip_address})")
+            else:
+                # ON CONFLICT UPDATE вернул не 1 — донор был, обновили метаданные
+                logger.info(f"Обновлён донор: {hostname} ({ip_address})")
             return donor_id
     
     def get_best_donor(self, exclude_ids: List[int] = None) -> Optional[Dict]:
@@ -69,7 +103,7 @@ class SNIDatabase:
             exclude_clause = f"AND id NOT IN ({placeholders})"
             params.extend(exclude_ids)
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
@@ -89,7 +123,7 @@ class SNIDatabase:
     def get_random_donor(self) -> Optional[Dict]:
         """Получение случайного донора (для распределения нагрузки)"""
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
@@ -108,7 +142,7 @@ class SNIDatabase:
     def update_success_rate(self, donor_id: int, is_success: bool, response_time_ms: int = None):
         """Обновление статистики донора"""
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             
             # Получаем текущие значения
@@ -154,7 +188,7 @@ class SNIDatabase:
     def get_donors_for_check(self, limit: int = 10) -> List[Dict]:
         """Получение доноров для проверки (тех, что давно не проверялись)"""
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
@@ -277,6 +311,10 @@ class SNIScanner:
             context = ssl.create_default_context()
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE  # Упрощённая проверка
+            try:
+                context.set_alpn_protocols(['h2', 'http/1.1'])
+            except (NotImplementedError, OSError):
+                pass
             
             # Пробуем подключиться
             with socket.create_connection((ip_address, port), timeout=5) as sock:
@@ -284,21 +322,19 @@ class SNIScanner:
                     end_time = time.time()
                     result['response_time_ms'] = int((end_time - start_time) * 1000)
                     
-                    # Получаем информацию о TLS
-                    result['tls_version'] = ssock.version()
-                    
-                    # Проверяем сертификат (упрощённо)
+                    # TLS-версия установлена — сервер реально отвечает по TLS на 443
+                    tls_version = ssock.version()
+                    result['tls_version'] = tls_version
+                    # Валидность: TLS-рукопожатие завершилось. Имя издателя извлекаем по-возможности.
+                    result['certificate_valid'] = bool(tls_version)
                     cert = ssock.getpeercert()
                     if cert:
-                        result['certificate_valid'] = True
-                        
-                        # Проверяем издателя
                         issuer = dict(x[0] for x in cert.get('issuer', []))
                         result['certificate_issuer'] = issuer.get('organizationName', 'Unknown')
                     
                     result['is_accessible'] = True
                     
-                    # Проверяем HTTP/2 (упрощённо - по ALPN)
+                    # HTTP/2 (по ALPN)
                     if hasattr(ssock, 'selected_alpn_protocol'):
                         result['http_version'] = ssock.selected_alpn_protocol()
                     
@@ -310,174 +346,6 @@ class SNIScanner:
             logger.warning(f"✗ Донор недоступен: {hostname} ({ip_address}) - {e}")
         
         return result
-    
-    def scan_ip_range(self, start_ip: str, end_ip: str, known_hostnames: List[str] = None):
-        """Сканирование диапазона IP (упрощённо)"""
-        
-        logger.info(f"Начинаю сканирование диапазона: {start_ip} - {end_ip}")
-        
-        # Преобразуем IP в числа для итерации
-        start = int(ipaddress.IPv4Address(start_ip))
-        end = int(ipaddress.IPv4Address(end_ip))
-        
-        # Ограничиваем диапазон для демонстрации
-        sample_size = min(50, end - start + 1)
-        sample_ips = random.sample(range(start, end + 1), sample_size)
-        
-        found_donors = []
-        
-        for ip_num in sample_ips:
-            ip_address = str(ipaddress.IPv4Address(ip_num))
-            
-            # Пробуем стандартные хосты
-            test_hostnames = known_hostnames or ['api.notion.com', 'api.github.com', 'slack.com']
-            
-            for hostname in test_hostnames:
-                try:
-                    result = self.check_donor(hostname, ip_address)
-                    
-                    if result['is_accessible'] and result['certificate_valid']:
-                        # Определяем страну (упрощённо)
-                        country_code = self._guess_country_by_ip(ip_address)
-                        
-                        # Проверяем CDN (упрощённо - по заголовкам)
-                        has_cdn = self._check_cdn(ip_address)
-                        
-                        donor_info = {
-                            'hostname': hostname,
-                            'ip_address': ip_address,
-                            'country_code': country_code,
-                            'tls_version': result['tls_version'],
-                            'http_version': result['http_version'],
-                            'certificate_issuer': result.get('certificate_issuer', 'Unknown'),
-                            'has_cdn': has_cdn,
-                            'response_time_ms': result['response_time_ms']
-                        }
-                        
-                        found_donors.append(donor_info)
-                        logger.info(f"Найден донор: {hostname} на {ip_address} ({country_code})")
-                        
-                        # Добавляем в базу
-                        self.db.add_donor(
-                            hostname=hostname,
-                            ip_address=ip_address,
-                            country_code=country_code,
-                            tls_version=result['tls_version'],
-                            http_version=result['http_version'],
-                            certificate_issuer=result.get('certificate_issuer'),
-                            has_cdn=has_cdn,
-                            tags=['scanned', 'auto']
-                        )
-                        
-                        break  # Переходим к следующему IP
-                        
-                except Exception as e:
-                    logger.error(f"Ошибка при проверке {hostname} на {ip_address}: {e}")
-        
-        logger.info(f"Сканирование завершено. Найдено доноров: {len(found_donors)}")
-        return found_donors
-    
-    def _guess_country_by_ip(self, ip_address: str) -> str:
-        """Определение страны по IP (упрощённо)"""
-        # В реальной системе нужно использовать IP-to-ASN базу
-        # Для демонстрации возвращаем случайные страны
-        countries = ['US', 'DE', 'NL', 'FR', 'GB', 'CA', 'SG']
-        return random.choice(countries)
-    
-    def _check_cdn(self, ip_address: str) -> bool:
-        """Проверка на наличие CDN (упрощённо)"""
-        # В реальной системе нужно проверять AS номер и заголовки
-        # Для демонстрации возвращаем случайное значение
-        return random.random() < 0.2  # 20% шанс что это CDN
-
-
-class Scheduler:
-    """Планировщик для автоматического сканирования и проверок"""
-    
-    def __init__(self, db: SNIDatabase, scanner: SNIScanner):
-        self.db = db
-        self.scanner = scanner
-        self.running = False
-    
-    def run_continuous(self, check_interval: int = 3600, scan_interval: int = 86400):
-        """Непрерывный запуск планировщика"""
-        
-        self.running = True
-        last_scan = datetime.now() - timedelta(days=1)
-        
-        logger.info(f"Планировщик запущен. Проверка каждые {check_interval//60} мин, сканирование каждые {scan_interval//3600} часов")
-        
-        while self.running:
-            try:
-                now = datetime.now()
-                
-                # 1. Проверяем существующих доноров
-                donors_to_check = self.db.get_donors_for_check(limit=20)
-                
-                for donor in donors_to_check:
-                    logger.info(f"Проверяю донора: {donor['hostname']}")
-                    result = self.scanner.check_donor(donor['hostname'], donor['ip_address'])
-                    
-                    self.db.update_success_rate(
-                        donor['id'],
-                        result['is_accessible'],
-                        result['response_time_ms']
-                    )
-                
-                # 2. Периодическое сканирование новых доноров
-                if (now - last_scan).total_seconds() > scan_interval:
-                    logger.info("Запускаю сканирование новых доноров...")
-                    
-                    # Примерные диапазоны популярных хостингов
-                    ip_ranges = [
-                        ("143.204.0.0", "143.204.255.255"),  # CloudFront
-                        ("140.82.0.0", "140.82.255.255"),    # GitHub
-                        ("52.85.0.0", "52.85.255.255"),      # AWS
-                    ]
-                    
-                    for start_ip, end_ip in ip_ranges:
-                        self.scanner.scan_ip_range(start_ip, end_ip)
-                    
-                    last_scan = now
-                
-                # 3. Выводим статистику
-                if len(donors_to_check) > 0:
-                    stats = self.db.get_stats()
-                    logger.info(f"Статистика: {stats['active']}/{stats['total']} активных, средний успех: {stats['avg_success_rate']:.2%}")
-                
-                # Ждём до следующей проверки
-                time.sleep(check_interval)
-                
-            except KeyboardInterrupt:
-                logger.info("Получен сигнал остановки...")
-                self.running = False
-            except Exception as e:
-                logger.error(f"Ошибка в планировщике: {e}")
-                time.sleep(60)  # Ждём минуту при ошибке
-    
-    def stop(self):
-        """Остановка планировщика"""
-        self.running = False
-
-
-# Утилиты для работы через API
-def get_donor_api():
-    """API endpoint для получения донора"""
-    db = SNIDatabase()
-    donor = db.get_best_donor()
-    
-    if donor:
-        return {
-            'success': True,
-            'donor': {
-                'hostname': donor['hostname'],
-                'ip_address': donor['ip_address'],
-                'country': donor['country_code'],
-                'success_rate': donor['success_rate']
-            }
-        }
-    else:
-        return {'success': False, 'error': 'Нет доступных доноров'}
 
 
 def main():
@@ -506,23 +374,14 @@ def main():
         print(f"{i}. {donor['hostname']}: {donor['success_rate']:.2%} ({donor['country_code']})")
     
     # Запускаем тестовое сканирование
-    print("\nЗапускаю тестовое сканирование...")
+    print("\nПроверка одного донора...")
     scanner = SNIScanner(db)
     
     # Тестируем один донор
-    test_result = scanner.check_donor("api.github.com", "140.82.121.3")
+    test_result = scanner.check_donor("api.notion.com", "143.204.68.34")
     print(f"\nТест донора: {test_result['hostname']}")
     print(f"Доступен: {test_result['is_accessible']}")
     print(f"TLS: {test_result['tls_version']}, HTTP: {test_result['http_version']}")
-    
-    # Показываем как получить донора через API
-    print("\n=== Пример использования ===")
-    api_result = get_donor_api()
-    if api_result['success']:
-        donor = api_result['donor']
-        print(f"API вернул донора: {donor['hostname']} ({donor['ip_address']})")
-    else:
-        print("API: Нет доступных доноров")
     
     print("\n=== Готово ===")
 

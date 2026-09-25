@@ -109,7 +109,7 @@ sp_handler = filters[0]["function"]
 
 msg = SimpleNamespace(
     from_user=SimpleNamespace(id=USER),
-    chat=SimpleNamespace(id=CHAT),
+    chat=SimpleNamespace(id=CHAT, type='private'),
     successful_payment=SimpleNamespace(invoice_payload=pid, total_amount=tb.STARS_PRICE),
 )
 sp_handler(msg)
