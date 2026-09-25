@@ -216,5 +216,43 @@ assert not ok and len(bot.sent_docs) == 0, "пустой вывод не дол�
 assert bot.payment_system.get_vps_setup(777) is None, "ключи не должны сохраняться без данных"
 print("OK 7/7: _save_setup_and_deliver с пустыми данными ничего не делает")
 
+# ============ 8. Backoff-гейт на «свежей» машине (time.monotonic() < 60) ============
+# Регрессия CI: .get(pid, 0) + monotonic<60 заставлял пропускать СВЕЖИЕ оплаты —
+# доставка молча не выполнялась (кнопки не показывались, бюджет в очереди).
+import time as _time
+ctx = _Ctx()
+bot = _make_bot(ctx)
+bot.crypto_pay = SimpleNamespace(
+    get_paid_invoices=lambda: [{
+        "payload": "pay_fresh",
+        "amount": tb.VPS_RUB_PRICE,
+        "status": "paid",
+        "invoice_id": "inv_fresh",
+    }]
+)
+pid_fresh = bot.payment_system.create_payment(USER, "tester", payment_id="pay_fresh")
+rec = {
+    "payment_id": pid_fresh, "user_id": USER, "chat_id": CHAT,
+    "server_ip": "95.217.1.1", "sni_hostname": "api.notion.com",
+}
+bot.pending_payments[pid_fresh] = rec
+real_monotonic = tb.time.monotonic
+bot.sent_markups.clear()
+bot.sent_docs.clear()
+tb.time.monotonic = lambda: 10.0  # машина загрузилась 10 секунд назад
+try:
+    bot._process_paid_invoices(bot.crypto_pay.get_paid_invoices())
+finally:
+    tb.time.monotonic = real_monotonic
+appeared = [
+    b.to_dict().get("callback_data")
+    for m in bot.sent_markups if m
+    for row2 in m.keyboard for b in row2
+]
+assert "install_self" in appeared and "install_ssh" in appeared, \
+    f"свежая оплата пропущена backoff-гейтом: markups={appeared} pending={dict(bot.pending_payments)}"
+assert pid_fresh not in bot.pending_payments, "оплата должна быть обработана"
+print("OK 8/8: backoff-гейт не блокирует свежие оплаты на только что загруженной машине")
+
 tb.PaymentSystem = _ORIG_PAYMENT_SYSTEM
 print("\nВСЕ ТЕСТЫ ПРОЙДЕНЫ")

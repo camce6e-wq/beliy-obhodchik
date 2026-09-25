@@ -2294,9 +2294,13 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
             pid = (inv or {}).get('payload') or ''
             if not pid:
                 continue
-            # Откат после ошибки: не долбим Crypto Bot каждые 10 секунд
-            last_fail = self._delivery_backoff.get(pid, 0)
-            if time.monotonic() - last_fail < 60:
+            # Откат после ошибки: не долбим Crypto Bot каждые 10 секунд.
+            # ВАЖНО: гейт срабатывает только если есть запись об откате. Дефолт
+            # отсутствующего ключа = None (не 0), иначе на только что загруженной
+            # машине (time.monotonic() < 60) свежие оплаты считались бы
+            # «отвалившимися 0 сек назад» и доставка бы пропускалась.
+            last_fail = self._delivery_backoff.get(pid)
+            if last_fail is not None and time.monotonic() - last_fail < 60:
                 continue
             with self._lock:
                 if pid not in self.pending_payments:
