@@ -125,7 +125,17 @@ elif [ -x /opt/sbin/nfqws ]; then
 fi
 
 sleep 1
-if pgrep -f nfqws >/dev/null 2>&1 || [ -s /var/run/nfqws.pid ]; then
+# ВАЖНО: pgrep -f ищет подстроку во всей командной строке, а "nfqws" входит
+# в имя самого скрипта (setup_nfqws.sh) — проверка всегда была успешной.
+# Поэтому сверяемся либо по точному имени процесса, либо по живому pid из pidfile.
+NFQWS_RUNNING=0
+if pgrep -x nfqws >/dev/null 2>&1; then
+    NFQWS_RUNNING=1
+elif [ -s /var/run/nfqws.pid ] && kill -0 "$(cat /var/run/nfqws.pid 2>/dev/null)" 2>/dev/null; then
+    NFQWS_RUNNING=1
+fi
+
+if [ "$NFQWS_RUNNING" -eq 1 ]; then
     echo ""
     echo "=============================================="
     echo "  ГОТОВО! NFQWS работает и включён в автозапуск."

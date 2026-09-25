@@ -40,9 +40,12 @@ echo "==> Генерирую ключи Reality..."
 UUID="$(command -v uuidgen >/dev/null 2>&1 && uuidgen || cat /proc/sys/kernel/random/uuid)"
 SHORT_ID="$(openssl rand -hex 4 2>/dev/null || cat /proc/sys/kernel/random/uuid | cut -d- -f1)"
 KEYS="$(xray x25519)"
-PRIVATE_KEY="$(echo "$KEYS" | awk '/Private/{print $NF}')"
-PUBLIC_KEY="$(echo "$KEYS" | awk '/Public/{print $NF}')"
-[ -n "$PRIVATE_KEY" ] && [ -n "$PUBLIC_KEY" ] || die "Не удалось получить ключи x25519."
+# Подписи ключей менялись между версиями xray: "Private key:"/"PrivateKey:",
+# "Public key:"/"PublicKey", а в части сборок публичный ключ печатается как
+# "Password:". Берём значение после двоеточия по любой из этих подписей.
+PRIVATE_KEY="$(printf '%s\n' "$KEYS" | awk -F': *' '/^[Pp]rivate/{print $NF}' | tr -d '[:space:]')"
+PUBLIC_KEY="$(printf '%s\n' "$KEYS" | awk -F': *' '/^(Public|Password)/{print $NF}' | tr -d '[:space:]')"
+[ -n "$PRIVATE_KEY" ] && [ -n "$PUBLIC_KEY" ] || die "Не удалось получить ключи x25519 (неожиданный вывод xray): $KEYS"
 
 DEST="${SNI_IP:+$SNI_IP:443}"
 [ -n "$DEST" ] || DEST="${SNI_HOSTNAME}:443"

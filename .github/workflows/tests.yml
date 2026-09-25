@@ -23,6 +23,15 @@ jobs:
           pip install -U pip
           pip install pyTelegramBotAPI requests cryptography
 
+      - name: Check shell script syntax
+        run: |
+          # setup_nfqws.sh уезжает на роутеры покупателей и имеет shebang /bin/sh,
+          # поэтому проверяем именно POSIX-интерпретатором (dash), а не bash.
+          sh -n setup_nfqws.sh
+          bash -n setup_vps.sh
+          bash -n deploy/update.sh
+          bash -n deploy/install.sh
+
       - name: Compile all modules
         run: |
           python -m py_compile telegram_bot.py support_bot.py keenetic_config_generator.py sni_manager.py
