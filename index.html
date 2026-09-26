@@ -1,1070 +1,223 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Белый Обходчик — интернет снова работает: ютуб, сайты, приложения</title>
-    <style>
-        /* Общие стили */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-        }
-        
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
-            line-height: 1.6;
-            min-height: 100vh;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 20px;
-        }
-        
-        /* Шапка */
-        header {
-            background: white;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-        }
-        
-        .header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 0;
-        }
-        
-        .logo {
-            font-size: 24px;
-            font-weight: bold;
-            color: #667eea;
-            text-decoration: none;
-        }
-        
-        .logo span {
-            color: #764ba2;
-        }
-        
-        nav a {
-            margin-left: 30px;
-            text-decoration: none;
-            color: #555;
-            font-weight: 500;
-            transition: color 0.3s;
-        }
-        
-        nav a:hover {
-            color: #667eea;
-        }
-        
-        /* Герой-секция */
-        .hero {
-            background: white;
-            padding: 70px 0;
-            text-align: center;
-            border-radius: 0 0 30px 30px;
-            margin-bottom: 50px;
-        }
-        
-        .hero h1 {
-            font-size: 44px;
-            margin-bottom: 20px;
-            color: #333;
-            line-height: 1.2;
-        }
-        
-        .hero h2 {
-            font-size: 22px;
-            color: #666;
-            margin-bottom: 40px;
-            font-weight: 400;
-            max-width: 800px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        
-        .highlight {
-            color: #667eea;
-            font-weight: bold;
-        }
-        
-        .cta-button {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 16px 40px;
-            border-radius: 50px;
-            text-decoration: none;
-            font-size: 18px;
-            font-weight: bold;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-            transition: transform 0.3s, box-shadow 0.3s;
-            margin: 8px;
-        }
-        
-        .cta-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
-        }
-        
-        .cta-button.secondary {
-            background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
-            box-shadow: none;
-        }
-        
-        .cta-button.secondary:hover {
-            background: #f0f2ff;
-        }
-
-        /* Секция «Боль → Решение» */
-        .pain-relief {
-            background: white;
-            padding: 60px 0;
-            margin-bottom: 50px;
-            border-radius: 30px;
-        }
-
-        .pain-columns {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            max-width: 900px;
-            margin: 0 auto;
-        }
-
-        .pain-card {
-            padding: 30px;
-            border-radius: 15px;
-        }
-
-        .pain-card.bad {
-            background: #fff5f5;
-            border: 2px solid #ffd7d7;
-        }
-
-        .pain-card.good {
-            background: #f0fff4;
-            border: 2px solid #c6f6d5;
-        }
-
-        .pain-card .card-title {
-            font-size: 22px;
-            font-weight: bold;
-            margin-bottom: 15px;
-        }
-
-        .pain-card.bad .card-title { color: #c53030; }
-        .pain-card.good .card-title { color: #276749; }
-
-        .pain-card ul {
-            list-style: none;
-            text-align: left;
-        }
-
-        .pain-card li {
-            margin-bottom: 10px;
-            padding-left: 25px;
-            position: relative;
-        }
-
-        .pain-card.bad li:before {
-            content: "✗";
-            position: absolute;
-            left: 0;
-            color: #c53030;
-            font-weight: bold;
-        }
-
-        .pain-card.good li:before {
-            content: "✓";
-            position: absolute;
-            left: 0;
-            color: #38a169;
-            font-weight: bold;
-        }
-
-        /* Секция «Что от вас → Что мы сделаем» */
-        .flow {
-            background: white;
-            padding: 60px 0;
-            margin-bottom: 50px;
-            border-radius: 30px;
-        }
-
-        .flow-columns {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 30px;
-        }
-
-        .flow-card {
-            background: #f8f9fa;
-            padding: 30px;
-            border-radius: 15px;
-        }
-
-        .flow-card .flow-label {
-            display: inline-block;
-            background: #667eea;
-            color: white;
-            padding: 4px 14px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: bold;
-            margin-bottom: 15px;
-        }
-
-        .flow-card .flow-label.green { background: #38a169; }
-        .flow-card .flow-label.orange { background: #dd6b20; }
-
-        .flow-card ul {
-            list-style: none;
-        }
-
-        .flow-card li {
-            margin-bottom: 12px;
-            padding-left: 25px;
-            position: relative;
-        }
-
-        .flow-card li:before {
-            content: "➜";
-            position: absolute;
-            left: 0;
-            color: #667eea;
-            font-weight: bold;
-        }
-
-        .flow-card.green li:before { color: #38a169; }
-        .flow-card.orange li:before { color: #dd6b20; }
-
-        /* Секция «Как это работает» */
-        .how-it-works {
-            background: white;
-            padding: 60px 0;
-            margin-bottom: 50px;
-            border-radius: 30px;
-        }
-        
-        .section-title {
-            text-align: center;
-            margin-bottom: 50px;
-            font-size: 36px;
-            color: #333;
-        }
-        
-        .steps {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
-        }
-        
-        .step {
-            background: #f8f9fa;
-            padding: 30px;
-            border-radius: 15px;
-            text-align: center;
-            transition: transform 0.3s;
-        }
-        
-        .step:hover {
-            transform: translateY(-5px);
-        }
-        
-        .step-number {
-            display: inline-block;
-            width: 40px;
-            height: 40px;
-            background: #667eea;
-            color: white;
-            border-radius: 50%;
-            line-height: 40px;
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
-        
-        .step h3 {
-            margin-bottom: 15px;
-            color: #333;
-        }
-        
-        /* Секция «Что вы получаете» */
-        .features {
-            background: white;
-            padding: 60px 0;
-            margin-bottom: 50px;
-            border-radius: 30px;
-        }
-        
-        .feature-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 30px;
-        }
-        
-        .feature {
-            text-align: center;
-            padding: 30px;
-            background: #f8f9fa;
-            border-radius: 15px;
-        }
-        
-        .feature-icon {
-            font-size: 40px;
-            margin-bottom: 20px;
-        }
-        
-        /* Секция устройств */
-        .devices {
-            background: white;
-            padding: 60px 0;
-            margin-bottom: 50px;
-            border-radius: 30px;
-        }
-
-        .device-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-        }
-
-        .device-item {
-            background: #f8f9fa;
-            padding: 18px 25px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-weight: 500;
-        }
-
-        .device-item .dev-icon {
-            font-size: 26px;
-        }
-
-        .device-note {
-            text-align: center;
-            color: #666;
-            margin-top: 25px;
-        }
-
-        /* Секция услуг */
-        .services {
-            background: white;
-            padding: 60px 0;
-            margin-bottom: 50px;
-            border-radius: 30px;
-        }
-
-        .service-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 20px;
-            background: #f8f9fa;
-            padding: 20px 25px;
-            border-radius: 12px;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-        }
-
-        .service-row .service-name {
-            font-weight: bold;
-            font-size: 18px;
-        }
-
-        .service-row .service-desc {
-            color: #666;
-        }
-
-        .service-row a {
-            color: #667eea;
-            font-weight: bold;
-            text-decoration: none;
-            white-space: nowrap;
-        }
-
-        /* Секция «Зачем свой сервер» */
-        .why-vps {
-            background: white;
-            padding: 60px 0;
-            margin-bottom: 50px;
-            border-radius: 30px;
-        }
-
-        .why-content {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .why-point {
-            background: #f8f9fa;
-            padding: 25px 30px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-        }
-
-        .why-point strong {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 18px;
-        }
-
-        .why-point .mini-steps {
-            margin-top: 15px;
-            padding: 15px 20px;
-            background: white;
-            border-radius: 10px;
-            border-left: 4px solid #667eea;
-        }
-
-        .why-point .mini-steps ol {
-            padding-left: 20px;
-        }
-
-        .why-point .mini-steps li {
-            margin-bottom: 8px;
-        }
-
-        /* Секция «Почему это безопасно» */
-        .safety {
-            background: white;
-            padding: 60px 0;
-            margin-bottom: 50px;
-            border-radius: 30px;
-        }
-        
-        .safety-content {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        
-        .safety-points {
-            margin-top: 30px;
-        }
-        
-        .safety-point {
-            margin-bottom: 20px;
-            padding-left: 30px;
-            position: relative;
-        }
-        
-        .safety-point:before {
-            content: "✓";
-            position: absolute;
-            left: 0;
-            color: #4CAF50;
-            font-weight: bold;
-        }
-        
-        /* Секция «Часто задаваемые вопросы» */
-        .faq {
-            background: white;
-            padding: 60px 0;
-            margin-bottom: 50px;
-            border-radius: 30px;
-        }
-        
-        .faq-item {
-            margin-bottom: 20px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 20px;
-        }
-        
-        .faq-question {
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #333;
-            cursor: pointer;
-        }
-        
-        .faq-answer {
-            color: #666;
-        }
-        
-        /* Секция «Цены» */
-        .pricing {
-            background: white;
-            padding: 60px 0;
-            margin-bottom: 50px;
-            border-radius: 30px;
-        }
-        
-        .pricing-plans {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
-        }
-        
-        .plan {
-            background: #f8f9fa;
-            padding: 40px;
-            border-radius: 15px;
-            text-align: center;
-            position: relative;
-        }
-        
-        .plan.recommended {
-            border: 2px solid #667eea;
-            transform: scale(1.05);
-        }
-        
-        .plan-badge {
-            position: absolute;
-            top: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #667eea;
-            color: white;
-            padding: 5px 20px;
-            border-radius: 20px;
-            font-size: 14px;
-        }
-        
-        .plan-price {
-            font-size: 48px;
-            font-weight: bold;
-            color: #333;
-            margin: 20px 0;
-        }
-        
-        .plan-features {
-            list-style: none;
-            margin: 30px 0;
-        }
-        
-        .plan-features li {
-            margin-bottom: 10px;
-            padding-left: 20px;
-            position: relative;
-        }
-        
-        .plan-features li:before {
-            content: "✓";
-            position: absolute;
-            left: 0;
-            color: #4CAF50;
-        }
-        
-        /* Подвал */
-        footer {
-            background: #333;
-            color: white;
-            padding: 60px 0 30px;
-            margin-top: 50px;
-        }
-        
-        .footer-content {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 40px;
-            margin-bottom: 40px;
-        }
-        
-        .footer-column h4 {
-            margin-bottom: 20px;
-            color: #667eea;
-        }
-        
-        .footer-links {
-            list-style: none;
-        }
-        
-        .footer-links li {
-            margin-bottom: 10px;
-        }
-        
-        .footer-links a {
-            color: #ccc;
-            text-decoration: none;
-            transition: color 0.3s;
-        }
-        
-        .footer-links a:hover {
-            color: #667eea;
-        }
-        
-        .copyright {
-            text-align: center;
-            padding-top: 30px;
-            border-top: 1px solid #444;
-            color: #999;
-        }
-        
-        /* Адаптивность */
-        @media (max-width: 768px) {
-            .hero h1 {
-                font-size: 32px;
-            }
-            
-            .hero h2 {
-                font-size: 18px;
-            }
-            
-            .section-title {
-                font-size: 28px;
-            }
-            
-            .header-content {
-                flex-direction: column;
-                text-align: center;
-            }
-            
-            nav {
-                margin-top: 20px;
-            }
-            
-            nav a {
-                margin: 0 10px;
-            }
-            
-            .plan.recommended {
-                transform: none;
-            }
-
-            .pain-columns {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="БелыйОбходчик: помощь с настройкой своего сервера, обходом DPI без сервера и подключением устройств.">
+  <meta name="theme-color" content="#0d1017">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:title" content="БелыйОбходчик — настройка подключения без лишней сложности">
+  <meta property="og:description" content="БелыйОбходчик: помощь с настройкой своего сервера, обходом DPI без сервера и подключением устройств.">
+  <meta name="twitter:card" content="summary">
+  <title>БелыйОбходчик — настройка подключения без лишней сложности</title>
+  <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <!-- Шапка -->
-    <header>
-        <div class="container">
-            <div class="header-content">
-                <a href="#" class="logo">Белый<span>Обходчик</span></a>
-                <nav>
-                    <a href="#how-it-works">Как это работает</a>
-                    <a href="#features">Что вы получаете</a>
-                    <a href="#why-vps">Зачем сервер</a>
-                    <a href="#pricing">Цены</a>
-                    <a href="#faq">Вопросы</a>
-                </nav>
-            </div>
-        </div>
-    </header>
+  <a class="skip-link" href="#main">К содержимому</a>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="index.html" aria-label="БелыйОбходчик — главная">
+        <span class="brand-logo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6 4 4 6-8"/><path d="M14 7h6v6"/></svg></span>
+        Белый<span>Обходчик</span>
+      </a>
+      <nav class="nav" aria-label="Главное меню">
+        <a href="#services">Услуги</a>
+        <a href="#how">Как это работает</a>
+        <a href="#faq">Вопросы</a>
+      </nav>
+      <a class="button button-small" href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener noreferrer">Открыть бота <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg></a>
+    </div>
+  </header>
 
-    <!-- Герой-секция -->
+  <main id="main">
+    <!-- HERO -->
     <section class="hero">
-        <div class="container">
-            <h1>Ютуб грузится, сайты открываются,<br>приложения работают — как раньше</h1>
-            <h2>Мы делаем настройку за вас. От вас — одна оплата и пара минут: бот сам подключится к вашей «заграничной коробочке», настроит её и пришлёт готовый файл для вашего роутера. Никаких команд и технических слов.</h2>
-            <a href="#pricing" class="cta-button">Купить настройку</a>
-            <a href="https://t.me/beliy_obhodchik_bot" class="cta-button secondary" target="_blank" rel="noopener">Открыть бота →</a>
+      <div class="container hero-layout">
+        <div class="hero-copy">
+          <p class="badge"><span class="badge-dot" aria-hidden="true"></span> Настройка под ваше устройство</p>
+          <h1>Ваш интернет.<br><em>Ваши правила.</em></h1>
+          <p class="lead">Поможем настроить подключение через собственный сервер — или подберём вариант без него. Понятные шаги, стоимость известна до оплаты.</p>
+          <div class="actions">
+            <a class="button" href="#services">Посмотреть услуги <span aria-hidden="true">↓</span></a>
+            <a class="ghost-link" href="#how">Как это устроено <span aria-hidden="true">→</span></a>
+          </div>
+          <div class="hero-note">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Сначала уточняем совместимость и порядок действий — потом вы оплачиваете.
+          </div>
         </div>
+
+        <div class="hero-visual" aria-hidden="true">
+          <div class="glow glow-1"></div>
+          <div class="glow glow-2"></div>
+          <div class="mock-window">
+            <div class="mock-bar"><i></i><i></i><i></i><span>панель подключения</span></div>
+            <div class="mock-body">
+              <div class="mock-row"><span>Статус</span><b class="ok"><i class="pulse"></i> подключено</b></div>
+              <div class="mock-row"><span>Устройство</span><b>Keenetic · Home</b></div>
+              <div class="mock-row"><span>Маршрут</span><b>через свой VPS</b></div>
+              <div class="mock-graph">
+                <i style="--h:35%"></i><i style="--h:55%"></i><i style="--h:45%"></i><i style="--h:70%"></i><i style="--h:60%"></i><i style="--h:85%"></i><i style="--h:75%"></i><i style="--h:95%"></i><i style="--h:80%"></i><i style="--h:100%"></i>
+              </div>
+              <div class="mock-foot"><span>задержка 38 мс</span><span>без ограничений</span></div>
+            </div>
+          </div>
+          <div class="float-chip chip-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> VLESS Reality</div>
+          <div class="float-chip chip-2">без аренды сервера — вариант есть</div>
+        </div>
+      </div>
     </section>
 
-    <!-- Боль → Решение -->
-    <section class="pain-relief">
-        <div class="container">
-            <h2 class="section-title">Вы хотите — мы сделаем</h2>
-            <div class="pain-columns">
-                <div class="pain-card bad">
-                    <div class="card-title">Сейчас раздражает:</div>
-                    <ul>
-                        <li>Ютуб «крутится» и не грузится</li>
-                        <li>Сайты и приложения не открываются</li>
-                        <li>Приходится разбираться в «настройках»</li>
-                        <li>Покупные VPN падают и тормозят</li>
-                        <li>Бесплатные меняют адрес по сто раз в день</li>
-                    </ul>
-                </div>
-                <div class="pain-card good">
-                    <div class="card-title">Будет, как вы хотите:</div>
-                    <ul>
-                        <li>Всё открывается быстро и без пауз</li>
-                        <li>Работает у всей семьи: ТВ, телефон, ноутбук</li>
-                        <li>Вы не разбираетесь ни в чём — мы за вас</li>
-                        <li>Стабильно месяцами, мы сами следим</li>
-                        <li>Ваш личный канал, не «общественный»</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
+    <!-- STATS -->
+    <section class="stats">
+      <div class="container stats-grid">
+        <div class="stat"><strong>4</strong><span>услуги с отдельными страницами и инструкциями</span></div>
+        <div class="stat"><strong>3</strong><span>шага от выбора услуги до проверки подключения</span></div>
+        <div class="stat"><strong>₽/⭐</strong><span>стоимость и порядок действий известны до оплаты</span></div>
+      </div>
     </section>
 
-    <!-- Что от вас → Что мы сделаем -->
-    <section class="flow">
-        <div class="container">
-            <h2 class="section-title">Честно: кто что делает</h2>
-            <div class="flow-columns">
-                <div class="flow-card">
-                    <span class="flow-label">Что нужно от вас (один раз)</span>
-                    <ul>
-                        <li>Купить маленький «сервер-коробочку» за границей — от 150 ₽/мес. Как за 1 минуту: → пошагово ниже</li>
-                        <li>Оплатить настройку: 1500 ₽ или 750 ⭐</li>
-                        <li>Прислать боту адрес сервера и пароль — всё</li>
-                    </ul>
-                </div>
-                <div class="flow-card green">
-                    <span class="flow-label green">Что мы делаем сами</span>
-                    <ul>
-                        <li>Подключаемся и настраиваем ваш сервер автоматически</li>
-                        <li>Собираем готовые настройки именно для вашего устройства</li>
-                        <li>Ведём автообновление: если что-то заблокируют — поменяем сами</li>
-                        <li>Поддержка 30 дней в Telegram</li>
-                    </ul>
-                </div>
-                <div class="flow-card orange">
-                    <span class="flow-label orange">Почему это лучше покупного VPN</span>
-                    <ul>
-                        <li>Ваш личный, не забитый тысячами людей канал</li>
-                        <li>Скорость высокая, адрес один, стабильный</li>
-                        <li>Никто не собирает ваши данные (в отличие от «бесплатных»)</li>
-                        <li>Сервер принадлежит вам — полный контроль</li>
-                    </ul>
-                </div>
-            </div>
+    <!-- SERVICES -->
+    <section class="section" id="services" aria-labelledby="services-title">
+      <div class="container">
+        <div class="section-heading">
+          <div><p class="eyebrow">01 / Каталог</p><h2 id="services-title">Выберите подходящий путь</h2></div>
+          <p>Каждая услуга ведёт на отдельную страницу: что это, кому подойдёт и с чего начать. Стоимость дополнительных работ уточняется до заказа.</p>
         </div>
+
+        <div class="service-grid">
+          <a class="service-card featured" href="service-full.html">
+            <span class="card-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg></span>
+            <span class="card-index">01 / С сервером</span>
+            <h3>Настройка на своём VPS</h3>
+            <p>Бот помогает настроить подключение на вашем виртуальном сервере и получить данные для устройств.</p>
+            <span class="card-bottom"><strong>1500 ₽ или 750 ⭐</strong><span class="card-arrow" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg></span></span>
+          </a>
+
+          <a class="service-card" href="service-dpi.html">
+            <span class="card-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></span>
+            <span class="card-index">02 / Без сервера</span>
+            <h3>Обход DPI без VPS</h3>
+            <p>Вариант для совместимого устройства, когда не хочется арендовать сервер. Доступность зависит от сети.</p>
+            <span class="card-bottom"><strong>1000 ₽ или 500 ⭐</strong><span class="card-arrow" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg></span></span>
+          </a>
+
+          <a class="service-card" href="service-claude.html">
+            <span class="card-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9l-4 3 4 3"/><path d="M16 9l4 3-4 3"/><path d="M13 5l-2 14"/></svg></span>
+            <span class="card-index">03 / Дополнительная помощь</span>
+            <h3>Подключение Claude Code</h3>
+            <p>Помощь с доступом к инструменту для разработки на вашем компьютере и в вашей сети.</p>
+            <span class="card-bottom"><strong>Стоимость по запросу</strong><span class="card-arrow" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg></span></span>
+          </a>
+
+          <a class="service-card" href="service-transfer.html">
+            <span class="card-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3-3"/><path d="M20 16H7l3 3"/></svg></span>
+            <span class="card-index">04 / Дополнительная помощь</span>
+            <h3>Перенос настроек</h3>
+            <p>Поможем перенести рабочее подключение на другое устройство или новый роутер.</p>
+            <span class="card-bottom"><strong>Стоимость по запросу</strong><span class="card-arrow" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg></span></span>
+          </a>
+        </div>
+      </div>
     </section>
 
-    <!-- Как это работает -->
-    <section id="how-it-works" class="how-it-works">
-        <div class="container">
-            <h2 class="section-title">Как это работает</h2>
-            <div class="steps">
-                <div class="step">
-                    <div class="step-number">1</div>
-                    <h3>Покупаете «коробочку» за границей</h3>
-                    <p>Обычный маленький сервер. Рекомендуем <a href="https://my.adminvps.ru/aff.php?aff=32386" target="_blank" rel="noopener">AdminVPS</a> — промокод <b>BELOBH</b> на скидку. Ниже — пошаговая инструкция.</p>
-                </div>
-                <div class="step">
-                    <div class="step-number">2</div>
-                    <h3>Бот всё настраивает сам</h3>
-                    <p>Подключается к вашему серверу и ставит софт автоматически. Вы ничего не вводите в терминал.</p>
-                </div>
-                <div class="step">
-                    <div class="step-number">3</div>
-                    <h3>Загружаете готовый файл в роутер</h3>
-                    <p>Скачиваете архив из чата → загружаете в роутер → интернет снова работает. Приложения? Тоже готовый файл всего в пару шагов.</p>
-                </div>
-            </div>
+    <!-- HOW IT WORKS -->
+    <section class="section section-dark" id="how" aria-labelledby="how-title">
+      <div class="container">
+        <div class="section-heading">
+          <div><p class="eyebrow">02 / Процесс</p><h2 id="how-title">Три шага до настройки</h2></div>
         </div>
+        <ol class="timeline">
+          <li>
+            <span class="timeline-number">01</span>
+            <div><h3>Выберите услугу</h3><p>Сравните варианты: со своим сервером или без него. На странице услуги указано, что потребуется.</p></div>
+            <span class="timeline-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+          </li>
+          <li>
+            <span class="timeline-number">02</span>
+            <div><h3>Откройте бота</h3><p>Уточните совместимость устройства, порядок действий и стоимость до оплаты.</p></div>
+            <span class="timeline-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-3.5-7.1"/><path d="M8 12l3 3 6-7"/></svg></span>
+          </li>
+          <li>
+            <span class="timeline-number">03</span>
+            <div><h3>Следуйте инструкции</h3><p>Получите нужные настройки и проверьте подключение на своём устройстве.</p></div>
+            <span class="timeline-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg></span>
+          </li>
+        </ol>
+
+        <div class="trust-row">
+          <div class="trust-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><span><b>Без лишних команд.</b> Инструкция по шагам — что делать и в каком порядке.</span></div>
+          <div class="trust-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H8l4-4m-4 4l4 4"/><path d="M4 5v14"/></svg><span><b>Стоимость заранее.</b> Цену и состав работ согласовываем до оплаты.</span></div>
+          <div class="trust-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4z"/></svg><span><b>Поддержка в Telegram.</b> Если что-то не сработало — разбираем ваш случай.</span></div>
+        </div>
+      </div>
     </section>
 
-    <!-- Зачем свой сервер -->
-    <section id="why-vps" class="why-vps">
-        <div class="container">
-            <h2 class="section-title">Зачем нужен «свой сервер»</h2>
-            <div class="why-content">
-                <div class="why-point">
-                    <strong>Что это такое, простыми словами</strong>
-                    Это небольшая удалённая «коробочка» за границей, через которую идёт ваш интернет. Покупается у провайдера отдельно (от 150 ₽/мес) и имеет к нашей плате за настройку мало отношения.
-                </div>
-                <div class="why-point">
-                    <strong>Почему не «просто VPN за 200 ₽»?</strong>
-                    Покупные VPN делят один канал между тысячами людей: скорость падает, сервера блокируют, а компания видит ваши запросы. Свой сервер — только ваш: быстрый, стабильный и приватный.
-                </div>
-                <div class="why-point">
-                    <strong>А бесплатные VPN?</strong>
-                    Бесплатное — это вы. Такие сервисы торгуют вашими данными, меняют адрес по 100 раз в день, и сайты всё равно не открываются. Свой сервер — предсказуемо и без сюрпризов.
-                </div>
-                <div class="why-point">
-                    <strong>Как завести за 1 минуту</strong>
-                    <div class="mini-steps">
-                        <ol>
-                            <li>Откройте <a href="https://my.adminvps.ru/aff.php?aff=32386" target="_blank" rel="noopener">AdminVPS</a> и нажмите «Заказать сервер»</li>
-                            <li>Выберите страну поближе к вам (параметры не важны — дешёвый тариф отлично подходит)</li>
-                            <li>Придумайте пароль и оплатите картой или криптой</li>
-                            <li>Пришлите боту адрес вида <b>123.45.67.89</b> и пароль — остальное сделаем мы</li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
+    <!-- FAQ -->
+    <section class="section" id="faq" aria-labelledby="faq-title">
+      <div class="container faq-layout">
+        <div class="faq-intro">
+          <p class="eyebrow">03 / Ответы</p>
+          <h2 id="faq-title">Частые вопросы</h2>
+          <p class="muted">Остались вопросы? Напишите в <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener noreferrer">Telegram-бот</a> — уточним ваш случай.</p>
+          <a class="button button-outline" href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener noreferrer">Задать вопрос <span aria-hidden="true">↗</span></a>
         </div>
+        <div class="faq-list">
+          <details open><summary>Нужен ли мне сервер?</summary><p>Для настройки подключения на своём VPS нужен арендованный виртуальный сервер. Для варианта обхода DPI без VPS сервер покупать не нужно, но результат зависит от вашей сети и устройства.</p></details>
+          <details><summary>Подойдёт ли мой роутер?</summary><p>У разных моделей и версий программного обеспечения разные возможности. Укажите модель в боте до заказа, чтобы уточнить совместимость.</p></details>
+          <details><summary>Есть ли ежемесячная оплата?</summary><p>Указанная стоимость услуг разовая. Если вы выбираете вариант с собственным VPS, аренда сервера оплачивается провайдеру отдельно.</p></details>
+          <details><summary>Что делать, если настройка не сработала?</summary><p>Сообщите в бот модель устройства и на каком шаге возникла проблема. Подключение может зависеть от провайдера, оборудования и текущих ограничений сети.</p></details>
+        </div>
+      </div>
     </section>
 
-    <!-- Что вы получаете -->
-    <section id="features" class="features">
-        <div class="container">
-            <h2 class="section-title">Что вы получаете</h2>
-            <div class="feature-grid">
-                <div class="feature">
-                    <div class="feature-icon">⚡</div>
-                    <h3>Полная автоматизация</h3>
-                    <p>Бот сам подключается, ставит и настраивает. Никаких команд в терминале.</p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">🔄</div>
-                    <h3>Автообновления</h3>
-                    <p>Перестало открываться что-то? Система сама найдёт новую маскировку и обновит настройки.</p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">🛡️</div>
-                    <h3>Раздельная маршрутизация</h3>
-                    <p>Только то, что нужно — через сервер. Остальное идёт как обычно, на полной скорости.</p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">📱</div>
-                    <h3>Все устройства дома</h3>
-                    <p>Ноутбуки, телефоны, телевизоры, приставки — всё через роутер, без настройки каждого.</p>
-                </div>
-            </div>
+    <!-- CTA -->
+    <section class="contact-band">
+      <div class="container contact-inner">
+        <div>
+          <p class="eyebrow light">Следующий шаг</p>
+          <h2>Начните с подходящей услуги.</h2>
+          <p>Откройте каталог, сравните два основных варианта и уточните детали в боте.</p>
         </div>
+        <div class="contact-actions">
+          <a class="button button-light" href="#services">Открыть каталог <span aria-hidden="true">↑</span></a>
+          <a class="ghost-link on-dark" href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener noreferrer">Написать в Telegram <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
     </section>
+  </main>
 
-    <!-- Устройства -->
-    <section id="devices" class="devices">
-        <div class="container">
-            <h2 class="section-title">На каких устройствах</h2>
-            <div class="device-list">
-                <div class="device-item"><span class="dev-icon">📡</span> Keenetic (все модели со встроенным VPN)</div>
-                <div class="device-item"><span class="dev-icon">🖥️</span> ASUS (модели с VPN-клиентом)</div>
-                <div class="device-item"><span class="dev-icon">🔧</span> Роутеры на OpenWrt</div>
-                <div class="device-item"><span class="dev-icon">📶</span> Xiaomi / MI Router</div>
-                <div class="device-item"><span class="dev-icon">🌐</span> TP-Link (модели с VPN-клиентом)</div>
-                <div class="device-item"><span class="dev-icon">🤖</span> Android-телефон (v2rayNG)</div>
-                <div class="device-item"><span class="dev-icon">🍏</span> iPhone (Streisand)</div>
-                <div class="device-item"><span class="dev-icon">💻</span> Компьютер Windows / macOS / Linux</div>
-            </div>
-            <p class="device-note">Нужного устройства нет в списке? Всё равно пишите в бота — конфиг подходит для большинства современных приложений.<br>
-            <b>Не знаете, какой роутер выбрать?</b> В боте есть подборщик → <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">нажмите /router</a></p>
-        </div>
-    </section>
-
-    <!-- Услуги -->
-    <section id="services" class="services">
-        <div class="container">
-            <h2 class="section-title">Что ещё можем настроить за вас</h2>
-            <div class="service-row">
-                <div><span class="service-name">Claude Code</span> <span class="service-desc">— установка и настройка на вашем сервере</span></div>
-                <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">Спросить →</a>
-            </div>
-            <div class="service-row">
-                <div><span class="service-name">MT4 / MT5 и торговые терминалы</span> <span class="service-desc">— стабильный доступ к зарубежным серверам</span></div>
-                <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">Спросить →</a>
-            </div>
-            <div class="service-row">
-                <div><span class="service-name">Несколько серверов</span> <span class="service-desc">— резервные каналы под рукой</span></div>
-                <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">Спросить →</a>
-            </div>
-            <div class="service-row">
-                <div><span class="service-name">Перенос настроек</span> <span class="service-desc">— сменили роутер? Всё переедет само</span></div>
-                <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">Спросить →</a>
-            </div>
-            <p style="text-align:center; margin-top:25px; color:#666;">Есть своя задача? Напишите поддержке: <a href="https://t.me/beliy_obhodchik_support_bot" target="_blank" rel="noopener">@beliy_obhodchik_support_bot</a></p>
-        </div>
-    </section>
-
-    <!-- Почему это безопасно -->
-    <section id="safety" class="safety">
-        <div class="container">
-            <h2 class="section-title">Почему это безопасно</h2>
-            <div class="safety-content">
-                <p>Мы не предоставляем VPN-услуги. Вы настраиваете свой сервер для личного использования.</p>
-                
-                <div class="safety-points">
-                    <div class="safety-point">
-                        <strong>Ваш сервер</strong> — вы арендуете VPS (например, у <a href="https://my.adminvps.ru/aff.php?aff=32386" target="_blank" rel="noopener">AdminVPS</a>)
-                    </div>
-                    <div class="safety-point">
-                        <strong>Ваши настройки</strong> — автоматизация лишь помогает сделать их самостоятельно
-                    </div>
-                    <div class="safety-point">
-                        <strong>Ваш интернет</strong> — мы не имеем доступа к вашему трафику
-                    </div>
-                    <div class="safety-point">
-                        <strong>Легально</strong> — настройка своего оборудования для личного использования
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Цены -->
-    <section id="pricing" class="pricing">
-        <div class="container">
-            <h2 class="section-title">Просто и понятно: разовый платёж</h2>
-            <div class="pricing-plans">
-                <div class="plan recommended">
-                    <div class="plan-badge">Рекомендуем</div>
-                    <h3>Полный пакет</h3>
-                    <div class="plan-price">1500 ₽</div>
-                    <p>Единоразовый платёж (или 750 ⭐)</p>
-                    <ul class="plan-features">
-                        <li>Бот сам подключается и настраивает сервер</li>
-                        <li>Готовые настройки для вашего устройства</li>
-                        <li>Автообновления при блокировках</li>
-                        <li>Поддержка в Telegram 30 дней</li>
-                        <li>Инструкция на 5 шагов (и вы не «технарь»)</li>
-                        <li>Помощь, если что-то не получилось</li>
-                    </ul>
-                    <a href="https://t.me/beliy_obhodchik_bot" class="cta-button" target="_blank" rel="noopener">Купить сейчас</a>
-                </div>
-                <div class="plan">
-                    <h3>Обход DPI без сервера</h3>
-                    <div class="plan-price">1000 ₽</div>
-                    <p>Единоразовый платёж (или 500 ⭐)</p>
-                    <ul class="plan-features">
-                        <li>Ютуб, Дискорд, Инстаграм, ТикТок — без своей «коробочки»</li>
-                        <li>Скрипт установки (Zapret / NFQWS) — запустите один раз</li>
-                        <li>Подходит роутерам Keenetic (Entware), OpenWrt и ПК</li>
-                        <li>Поддержка в Telegram 30 дней</li>
-                        <li>Никаких команд: бот пришлёт скрипт и пошаговую инструкцию</li>
-                    </ul>
-                    <a href="https://t.me/beliy_obhodchik_bot" class="cta-button secondary" target="_blank" rel="noopener">Выбрать</a>
-                </div>
-            </div>
-            <p style="text-align: center; margin-top: 30px; color: #666;">
-                + отдельно оплачивается сам сервер (от 150 ₽/мес у
-                <a href="https://my.adminvps.ru/aff.php?aff=32386" target="_blank" rel="noopener">AdminVPS</a>),
-                промокод на скидку: <b>BELOBH</b>
-            </p>
-        </div>
-    </section>
-
-    <!-- Часто задаваемые вопросы -->
-    <section id="faq" class="faq">
-        <div class="container">
-            <h2 class="section-title">Частые вопросы — честно и простыми словами</h2>
-            <div class="faq-list">
-                <div class="faq-item">
-                    <div class="faq-question">Нужны ли технические знания?</div>
-                    <div class="faq-answer">Нет. Бот сам подключается к вашему серверу и всё настраивает. Вы только оплачиваете и загружаете готовый файл — как загружаете фото или документ.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-question">Почему нельзя просто купить VPN за 200 ₽?</div>
-                    <div class="faq-answer">Покупной VPN делят тысяча людей: скорость падает, сервера блокируют, компания видит, что вы смотрите. Свой сервер — быстрый, стабильный и только ваш.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-question">А бесплатные VPN?</div>
-                    <div class="faq-answer">Бесплатные сервисы торгуют вашими данными, меняют адрес по 100 раз в день, и сайты всё равно не открываются. Это ложная экономия.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-question">Я боюсь покупать «сервер», это же сложно?</div>
-                    <div class="faq-answer">Это как купить подписку: выбрали страну, придумали пароль, оплатили картой — 1 минута. Пошагово с картинками в разделе «Зачем свой сервер». Если застряли — поддержка поможет лично.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-question">Что если маскировка перестанет работать?</div>
-                    <div class="faq-answer">Мы используем маскировку Reality: провайдер видит обычный безопасный сайт, а не VPN. А если что-то заблокируют — система сама найдёт новую и обновит настройки.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-question">Это легально?</div>
-                    <div class="faq-answer">Да. Вы настраиваете свой сервер для личного использования — это как настроить свой компьютер или роутер.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-question">Нужно ли платить каждый месяц?</div>
-                    <div class="faq-answer">Только за сам сервер (от 150 ₽/мес). Наши настройки, обновления и поддержка бесплатны после разовой оплаты.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-question">Какие устройства поддерживаются?</div>
-                    <div class="faq-answer">Keenetic, ASUS, роутеры на OpenWrt, Xiaomi, TP-Link, Android, iPhone, ПК. Полный список выше. Чего-то нет? Спросите — подберём вариант.</div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Подвал -->
-    <footer>
-        <div class="container">
-            <div class="footer-content">
-                <div class="footer-column">
-                    <h4>БелыйОбходчик</h4>
-                    <p>Возвращаем интернет тем, кто не хочет разбираться в технике. Автоматическая настройка вашего личного сервера.</p>
-                </div>
-                <div class="footer-column">
-                    <h4>Ссылки</h4>
-                    <ul class="footer-links">
-                        <li><a href="#how-it-works">Как это работает</a></li>
-                        <li><a href="#features">Что вы получаете</a></li>
-                        <li><a href="#why-vps">Зачем свой сервер</a></li>
-                        <li><a href="#pricing">Цены</a></li>
-                        <li><a href="#faq">Вопросы</a></li>
-                    </ul>
-                </div>
-                <div class="footer-column">
-                    <h4>Поддержка</h4>
-                    <ul class="footer-links">
-                        <li>Telegram-бот: <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener">@beliy_obhodchik_bot</a></li>
-                        <li>Поддержка: <a href="https://t.me/beliy_obhodchik_support_bot" target="_blank" rel="noopener">@beliy_obhodchik_support_bot</a></li>
-                        <li>Часы работы: 10:00-22:00</li>
-                    </ul>
-                </div>
-                <div class="footer-column">
-                    <h4>Оплата</h4>
-                    <p>Оплата проходит внутри Telegram-бота:<br>
-                    • 💳 Crypto Bot (USDT)<br>
-                    • ⭐ Звёзды Telegram<br>
-                    Настройки выдаются автоматически после оплаты.</p>
-                </div>
-            </div>
-            <div class="copyright">
-                <p>© 2026 БелыйОбходчик. Все права защищены.</p>
-            </div>
-        </div>
-    </footer>
-
-    <script>
-        // Раскрытие FAQ
-        document.querySelectorAll('.faq-question').forEach(question => {
-            question.addEventListener('click', () => {
-                const answer = question.nextElementSibling;
-                answer.style.display = answer.style.display === 'block' ? 'none' : 'block';
-            });
-        });
-
-        // Плавная прокрутка для навигации
-        document.querySelectorAll('nav a').forEach(link => {
-            link.addEventListener('click', function(e) {
-                e.preventDefault();
-                const targetId = this.getAttribute('href');
-                const targetElement = document.querySelector(targetId);
-                
-                if (targetElement) {
-                    window.scrollTo({
-                        top: targetElement.offsetTop - 80,
-                        behavior: 'smooth'
-                    });
-                }
-            });
-        });
-
-        // Внутренние якоря кнопок — плавной прокруткой
-        document.querySelectorAll('.cta-button').forEach(button => {
-            const href = button.getAttribute('href') || '';
-            if (href.startsWith('#')) {
-                button.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const target = document.querySelector(href);
-                    if (target) {
-                        window.scrollTo({ top: target.offsetTop - 80, behavior: 'smooth' });
-                    }
-                });
-            }
-        });
-
-        // Анимация при прокрутке
-        const observerOptions = {
-            threshold: 0.2,
-            rootMargin: '0px 0px -50px 0px'
-        };
-
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.style.opacity = '1';
-                    entry.target.style.transform = 'translateY(0)';
-                }
-            });
-        }, observerOptions);
-
-        document.querySelectorAll('.step, .feature, .faq-item, .device-item, .service-row, .why-point, .pain-card, .flow-card').forEach(el => {
-            el.style.opacity = '0';
-            el.style.transform = 'translateY(20px)';
-            el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-            observer.observe(el);
-        });
-    </script>
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div class="footer-brand">
+        <a class="brand on-dark" href="index.html"><span class="brand-logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6 4 4 6-8"/><path d="M14 7h6v6"/></svg></span>Белый<span>Обходчик</span></a>
+        <p>Помощь с настройкой подключения: через свой VPS или без него. Уточняем совместимость до оплаты.</p>
+      </div>
+      <nav class="footer-col" aria-label="Разделы">
+        <h3>Разделы</h3>
+        <a href="#services">Услуги</a>
+        <a href="#how">Как это работает</a>
+        <a href="#faq">Вопросы</a>
+      </nav>
+      <nav class="footer-col" aria-label="Услуги">
+        <h3>Услуги</h3>
+        <a href="service-full.html">Свой VPS</a>
+        <a href="service-dpi.html">Обход DPI без VPS</a>
+        <a href="service-claude.html">Claude Code</a>
+        <a href="service-transfer.html">Перенос настроек</a>
+      </nav>
+      <div class="footer-col">
+        <h3>Связь</h3>
+        <a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener noreferrer">Telegram-бот ↗</a>
+        <a href="https://t.me/beliy_obhodchik_support_bot" target="_blank" rel="noopener noreferrer">Поддержка ↗</a>
+      </div>
+    </div>
+    <div class="container footer-bottom">
+      <small>© 2026 БелыйОбходчик</small>
+      <small>Сайт носит информационный характер. Стоимость и условия подтверждаются в боте.</small>
+    </div>
+  </footer>
 </body>
 </html>
