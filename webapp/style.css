@@ -1,0 +1,87 @@
+:root {
+  --bg: #0d1017;
+  --card: #161b26;
+  --line: #242b3a;
+  --ink: #e8ebf3;
+  --muted: #aeb6c6;
+  --violet: #6d5efc;
+  --grad: linear-gradient(120deg, #6d5efc 0%, #9333ea 55%, #ec4899 120%);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, system-ui, sans-serif;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  padding: max(0px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+a { color: var(--violet); text-decoration: none; }
+
+.top { padding: 14px 0 6px; }
+.brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; font-size: 1rem; color: var(--ink); }
+.brand span { color: #8f7fff; }
+.brand-mark {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px;
+  background: var(--grad); color: #fff; font-size: .85rem; box-shadow: 0 6px 16px rgba(109, 94, 252, .35);
+}
+
+.hero { padding: 22px 0 10px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 8px; margin: 0 0 12px;
+  padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, .07);
+  border: 1px solid rgba(255, 255, 255, .14); font-size: .72rem; font-weight: 700;
+  letter-spacing: .05em; text-transform: uppercase; color: #dfe3ff;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #c3f53c; }
+h1 { margin: 0 0 10px; font-size: 1.55rem; line-height: 1.2; letter-spacing: -.02em; }
+h1 em { font-style: normal; background: linear-gradient(100deg, #a78bfa, #f472b6); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lead { margin: 0; color: var(--muted); font-size: .95rem; }
+
+.sec-title { margin: 26px 0 12px; font-size: .78rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #8f7fff; }
+
+.card {
+  display: flex; flex-direction: column; gap: 8px; margin: 12px 0 0; padding: 18px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+}
+.card.featured { background: linear-gradient(160deg, #161b26, #1e1635); border-color: #3b2f66; }
+.card-head { display: flex; align-items: center; justify-content: space-between; }
+.icon { font-size: 1.35rem; }
+.tag {
+  padding: 4px 10px; border-radius: 999px; background: rgba(109, 94, 252, .2);
+  border: 1px solid rgba(109, 94, 252, .45); color: #a78bfa; font-size: .68rem; font-weight: 800;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+.card h3 { margin: 0; font-size: 1.06rem; }
+.card p { margin: 0; color: var(--muted); font-size: .88rem; }
+.price { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; }
+.price strong { font-size: 1.25rem; letter-spacing: -.02em; }
+.price span { color: var(--muted); font-size: .8rem; }
+.on-request { font-weight: 700; color: var(--ink); font-size: .95rem !important; }
+
+.btn {
+  display: block; width: 100%; margin-top: 8px; padding: 14px 0; text-align: center;
+  border: 0; border-radius: 999px; background: var(--grad); color: #fff;
+  font-size: 1rem; font-weight: 700; box-shadow: 0 10px 24px rgba(109, 94, 252, .35);
+  -webkit-tap-highlight-color: transparent;
+}
+.btn.outline { background: transparent; border: 1.5px solid var(--line); color: var(--ink); box-shadow: none; }
+
+.steps ol { margin: 0; padding: 0; list-style: none; counter-reset: s; }
+.steps li {
+  position: relative; margin-top: 10px; padding: 16px 18px 16px 58px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px; font-size: .9rem;
+}
+.steps li b { display: block; margin-bottom: 2px; font-size: .95rem; }
+.steps li::before {
+  counter-increment: s; content: counter(s, decimal-leading-zero);
+  position: absolute; left: 18px; top: 16px; font-weight: 800; letter-spacing: .08em;
+  background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+.support p { color: var(--muted); font-size: .9rem; }
+
+footer { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: .78rem; }
+footer p { margin: 0; }

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="БелыйОбходчик — настройка стабильного доступа к заблокированным сайтам за один день. Витрина услуг в Telegram.">
+<meta name="theme-color" content="#0d1017">
+<title>БелыйОбходчик — услуги</title>
+<link rel="icon" href="../img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="https://camce6e-wq.github.io/beliy-obhodchik/">
+    <span class="brand-mark" aria-hidden="true">↗</span>
+    Белый<span>Обходчик</span>
+  </a>
+</header>
+
+<main>
+  <section class="hero">
+    <p class="badge"><span class="dot" aria-hidden="true"></span>Работает прямо сейчас</p>
+    <h1>Доступ к сайтам. <em>Без лишней сложности.</em></h1>
+    <p class="lead">Настраиваем обход замедлений и блокировок на вашем роутере или сервере. Оплата — крипта или звёзды Telegram.</p>
+  </section>
+
+  <section aria-labelledby="srv">
+    <h2 id="srv" class="sec-title">Услуги</h2>
+
+    <article class="card featured">
+      <div class="card-head"><span class="tag">Популярное</span><span class="icon" aria-hidden="true">🖥</span></div>
+      <h3>Полный пакет</h3>
+      <p>Настройка собственного сервера: стабильный доступ к любым сайтам, обновление донора при блокировках, поддержка 30 дней.</p>
+      <div class="price"><strong>1500 ₽</strong><span>или 750 ⭐</span></div>
+      <a class="btn" href="https://t.me/beliy_obhodchik_bot">Заказать ↗</a>
+    </article>
+
+    <article class="card">
+      <div class="card-head"><span class="icon" aria-hidden="true">🚀</span></div>
+      <h3>Обход DPI без сервера</h3>
+      <p>Zapret / NFQWS на роутере или ПК: снимает замедление Ютуба, Дискорда, ТикТока и многих сайтов без покупки VPS.</p>
+      <div class="price"><strong>1000 ₽</strong><span>или 500 ⭐</span></div>
+      <a class="btn" href="https://t.me/beliy_obhodchik_bot">Заказать ↗</a>
+    </article>
+
+    <article class="card">
+      <div class="card-head"><span class="icon" aria-hidden="true">🤖</span></div>
+      <h3>Claude Code</h3>
+      <p>Настройка доступа для работы с нейросетями и инструментами разработки. Подбираем решение под вашу задачу.</p>
+      <div class="price"><span class="on-request">По запросу</span></div>
+      <a class="btn" href="https://t.me/beliy_obhodchik_bot">Заказать ↗</a>
+    </article>
+
+    <article class="card">
+      <div class="card-head"><span class="icon" aria-hidden="true">🔄</span></div>
+      <h3>Перенос настроек</h3>
+      <p>Сменили роутер или устройство? Поможем перенести рабочее подключение и проверить результат.</p>
+      <div class="price"><span class="on-request">По запросу</span></div>
+      <a class="btn" href="https://t.me/beliy_obhodchik_bot">Заказать ↗</a>
+    </article>
+  </section>
+
+  <section class="steps" aria-labelledby="how">
+    <h2 id="how" class="sec-title">Как это работает</h2>
+    <ol>
+      <li><b>Пишете боту</b> — выбираете услугу, оплачиваете криптой или звёздами.</li>
+      <li><b>Мы настраиваем</b> — сервер поднимаем автоматически, для роутера собираем готовые настройки.</li>
+      <li><b>Всё работает</b> — при блокировках донор обновляется без вашего участия, поддержка 30 дней.</li>
+    </ol>
+  </section>
+
+  <section class="support" aria-labelledby="sup">
+    <h2 id="sup" class="sec-title">Нужна помощь?</h2>
+    <p>Задайте вопрос в чате поддержки — отвечаем в течение рабочего дня.</p>
+    <a class="btn outline" href="https://t.me/beliy_obhodchik_support_bot">Чат поддержки ↗</a>
+  </section>
+</main>
+
+<footer>
+  <p>© 2026 БелыйОбходчик · <a href="https://camce6e-wq.github.io/beliy-obhodchik/">Полная версия сайта</a></p>
+</footer>
+
+<script>
+const tg = window.Telegram ? window.Telegram.WebApp : null;
+const root = document.documentElement;
+const apply = () => {
+  if (!tg) return;
+  const t = (tg.themeParams && tg.themeParams.bg_color) || '#0d1017';
+  root.style.setProperty('--bg', t === '#ffffff' ? '#ffffff' : '#0d1017');
+  if (tg.themeParams && tg.themeParams.text_color) root.style.setProperty('--ink', tg.themeParams.text_color);
+};
+if (tg) { tg.ready(); tg.expand(); tg.setHeaderColor('#0d1017'); tg.setBackgroundColor('#0d1017'); tg.onEvent('themeChanged', apply); }
+apply();
+function openBot(url) {
+  if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
+  else window.location.href = url;
+}
+document.querySelectorAll(".btn").forEach(function (b) {
+  b.addEventListener("click", function (e) {
+    e.preventDefault();
+    openBot(b.href);
+  });
+});
+</script>
+</body>
+</html>
