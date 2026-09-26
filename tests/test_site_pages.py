@@ -4,7 +4,10 @@ from collections import Counter
 from pathlib import Path
 from html.parser import HTMLParser
 
-ROOT = Path(__file__).resolve().parent
+_root = Path(__file__).resolve().parent
+while not (_root / "index.html").exists() and _root != _root.parent:
+    _root = _root.parent
+ROOT = _root
 PAGES = ["index.html", "service-full.html", "service-dpi.html",
          "service-claude.html", "service-transfer.html"]
 
