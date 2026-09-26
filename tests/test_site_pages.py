@@ -1,9 +1,10 @@
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 from html.parser import HTMLParser
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent
 PAGES = ["index.html", "service-full.html", "service-dpi.html",
          "service-claude.html", "service-transfer.html"]
 
@@ -68,6 +69,25 @@ def main():
             errors.append("%s: expected exactly one <h1>, got %d" % (name, html.count("<h1")))
         if not re.search(r'<html[^>]*lang="ru"', html):
             errors.append("%s: html[lang] is not 'ru'" % name)
+        if not re.search(r'<meta name="description" content="[^"]+', html):
+            errors.append("%s: missing non-empty meta description" % name)
+        if "<title>" not in html or html.count("<title>") != 1:
+            errors.append("%s: expected exactly one <title>" % name)
+        if html.count('class="skip-link"') == 0:
+            errors.append("%s: missing skip-link" % name)
+        navs = re.findall(r"<nav\b[^>]*>", html)
+        if any("aria-label=" not in n for n in navs):
+            errors.append("%s: <nav> missing aria-label" % name)
+        for img in re.findall(r"<img\b[^>]*>", html):
+            m = re.search(r'alt="([^"]*)"', img)
+            if m is None or not m.group(1).strip():
+                errors.append("%s: <img> without alt text" % name)
+        for a in re.findall(r"<a\b[^>]*>.*?</a>", html, re.S):
+            if not re.sub(r"<[^>]+>|\s+", "", a):
+                errors.append("%s: <a> with empty text" % name)
+        dup = [i for i, n in Counter(re.findall(r'id="([^"]+)"', html)).items() if n > 1]
+        if dup:
+            errors.append("%s: duplicate ids: %s" % (name, ", ".join(dup)))
         ids = page_ids(path)
         for href in internal_links(html):
             checked_links += 1
