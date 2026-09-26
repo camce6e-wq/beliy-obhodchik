@@ -126,11 +126,14 @@ print("OK 5/6: cmd_menu -> приветствие")
 
 # 6) Все кнопки меню ведут на реальные обработчики (не тупики)
 menus = tb.AutoConfigBot._main_menu_inline_keyboard(bot)
-labels = [b["callback_data"]
-          for row in menus.to_dict()["inline_keyboard"] for b in row]
+rows = menus.to_dict()["inline_keyboard"]
+labels = [b["callback_data"] for row in rows for b in row if "callback_data" in b]
+webapp_buttons = [b["web_app"]["url"] for row in rows for b in row if "web_app" in b]
 expected = {"cmd_buy", "cmd_router", "cmd_dpi", "cmd_vps", "cmd_guide",
             "cmd_faq", "cmd_myorders", "cmd_support"}
 assert set(labels) == expected, f"набор кнопок = {set(labels)}"
+assert len(webapp_buttons) == 1 and "/webapp/" in webapp_buttons[0], \
+    f"в меню должна быть кнопка Mini App: {webapp_buttons}"
 for cb in sorted(expected):
     sent.clear()
     bot.last_cmd.clear()
@@ -148,7 +151,7 @@ bot.user_data[USER] = {
     "server_ip": "95.217.1.1",
     "sni_hostname": "api.notion.com",
 }
-used = [b["callback_data"] for row in menus.to_dict()["inline_keyboard"] for b in row]
+used = [b["callback_data"] for row in rows for b in row if "callback_data" in b]
 known = {"cancel_purchase", "create_new", "install_self", "install_ssh",
          "make_dpi_payment", "make_payment", "pay_dpi_stars", "pay_stars",
          "retry_ssh_install", "update_existing"}

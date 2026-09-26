@@ -173,6 +173,9 @@ VPS_RUB_PRICE = 1500
 # там уже нужен свой сервер (VPS). Мы честно это объясняем пользователю.
 DPI_RUB_PRICE = 1000  # Через Crypto Bot
 DPI_STARS_PRICE = 500 # Через звёзды Telegram (дешевле, т.к. сервера нет)
+# Telegram Mini App (веб-приложение внутри Telegram): витрина услуг в стиле сайта.
+# Пустая строка = кнопку приложения скрываем (например, пока не задеплоено).
+WEBAPP_URL = os.environ.get('WEBAPP_URL', 'https://camce6e-wq.github.io/beliy-obhodchik/webapp/index.html').strip()
 CALLBACK_COOLDOWN = float(os.environ.get('CALLBACK_COOLDOWN', '2'))
 COMMAND_COOLDOWN = float(os.environ.get('COMMAND_COOLDOWN', '2'))
 # ID админов/владельцев через запятую: ADMIN_USER_IDS=111,222,333
@@ -841,6 +844,8 @@ class AutoConfigBot:
         """Главное меню: русские кнопки под текстом (вместо нижней клавиатуры и команд).
         Кнопки шлют callback cmd_*, диспетчер вызывает те же функции, что и команды."""
         kb = types.InlineKeyboardMarkup(row_width=2)
+        if WEBAPP_URL:
+            kb.add(types.InlineKeyboardButton("🚀 Приложение", web_app=types.WebAppInfo(url=WEBAPP_URL)))
         kb.add(
             types.InlineKeyboardButton("🛒 Купить настройку", callback_data="cmd_buy"),
             types.InlineKeyboardButton("🎛 Подобрать роутер", callback_data="cmd_router"),
@@ -864,22 +869,16 @@ class AutoConfigBot:
         Используется из /start и после отмены заказа / выхода из режима поддержки."""
         welcome_text = (
             "👋 *Здравствуйте! Я — БелыйОбходчик.*\n\n"
-            "Понимаю вашу боль без технических слов:\n\n"
-            "❌ *Сейчас:* Ютуб не грузится, видео «крутится» часами, сайты не открываются, "
-            "приложения падают.\n\n"
-            "✅ *Вы хотите:* чтобы всё работало как раньше — и вы не думали, *как* это устроено.\n\n"
-            "➡️ *Что нужно от вас (один раз):*\n"
-            "1. Купить крошечный «сервер-коробочку» за границей — от 150 ₽/мес "
-            "(для сравнения: одна поездка на маршрутке). По шагам поможем — кнопка ниже.\n"
-            "2. Оплатить настройку: 1500 ₽ или 750 ⭐\n\n"
-            "➡️ *Что мы сделаем (дальше всё само):*\n"
-            "• Подключимся к вашему серверу и настроим его автоматически\n"
-            "• Соберём готовые настройки прямо для вашего роутера (Keenetic, и др.)\n"
-            "• При блокировках обновим донора сами\n"
-            "• Поддержка 30 дней\n\n"
-            "🎁 *Почему это лучше, чем «купить VPN за 200₽»:* наш сервер принадлежит *вам* — "
-            "высокая скорость, личный не забитый IP, без падений и слежки.\n\n"
-            "⬇️ *Выберите действие ниже:*"
+            "Настраиваю стабильный доступ к сайтам и сервисам, которые замедляются "
+            "или блокируются провайдером. Без технических слов — вы просто получаете рабочий результат.\n\n"
+            "⬇️ *Услуги:*\n"
+            f"🖥 *Полный пакет* — свой сервер, автообновление при блокировках, поддержка 30 дней — "
+            f"*{VPS_RUB_PRICE} ₽* или *{STARS_PRICE} ⭐*\n"
+            f"🚀 *Обход DPI без сервера* — роутер или ПК, Zapret/NFQWS — "
+            f"*{DPI_RUB_PRICE} ₽* или *{DPI_STARS_PRICE} ⭐*\n"
+            "🤖 *Claude Code* — по запросу\n"
+            "🔄 *Перенос настроек* — по запросу\n\n"
+            "📱 Откройте *приложение* — там витрина услуг и цены. Или выберите действие ниже:"
         )
         self.bot.send_message(
             chat_id,
@@ -1018,6 +1017,25 @@ class AutoConfigBot:
                 return
             self._show_welcome(message.chat.id)
         
+        @self.bot.message_handler(commands=['app'])
+        def open_app(message):
+            if not WEBAPP_URL:
+                return
+            if not self._guard_message(message):
+                return
+            user_id = message.from_user.id
+            if self._antiflood(user_id, COMMAND_COOLDOWN):
+                self._notify_slow(message.chat.id, user_id)
+                return
+            kb = types.InlineKeyboardMarkup()
+            kb.add(types.InlineKeyboardButton(
+                "🚀 Открыть приложение", web_app=types.WebAppInfo(url=WEBAPP_URL)
+            ))
+            self.bot.send_message(
+                message.chat.id,
+                "Приложение БелыйОбходчик — витрина услуг с ценами. Откройте его кнопкой ниже.",
+                reply_markup=kb,
+            )
         @self.bot.message_handler(commands=['dpi'])
         def make_dpi_order(message):
             """Услуга «Без сервера»: обход DPI на роутере/ПК — без покупки VPS."""
