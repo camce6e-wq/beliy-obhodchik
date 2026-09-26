@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="БелыйОбходчик: помощь с настройкой своего сервера, обходом DPI без сервера и подключением устройств.">
   <meta name="theme-color" content="#0d1017">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="БелыйОбходчик">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ru_RU">
   <meta property="og:title" content="БелыйОбходчик — настройка подключения без лишней сложности">
@@ -18,6 +22,7 @@
   <title>БелыйОбходчик — настройка подключения без лишней сложности</title>
   <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -228,8 +233,54 @@
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [
+    "@graph": [
+      {
+        "@type": "Organization",
+        "name": "БелыйОбходчик",
+        "url": "https://camce6e-wq.github.io/beliy-obhodchik/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://camce6e-wq.github.io/beliy-obhodchik/img/apple-touch-icon.png",
+          "width": 180,
+          "height": 180
+        },
+        "sameAs": ["https://t.me/beliy_obhodchik_bot"]
+      },
+      {
+        "@type": "ItemList",
+        "name": "Услуги",
+        "itemListOrder": "https://schema.org/ItemListOrderAscending",
+        "numberOfItems": 4,
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Настройка на своём VPS",
+            "url": "https://camce6e-wq.github.io/beliy-obhodchik/service-full.html"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Обход DPI без VPS",
+            "url": "https://camce6e-wq.github.io/beliy-obhodchik/service-dpi.html"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Подключение Claude Code",
+            "url": "https://camce6e-wq.github.io/beliy-obhodchik/service-claude.html"
+          },
+          {
+            "@type": "ListItem",
+            "position": 4,
+            "name": "Перенос настроек",
+            "url": "https://camce6e-wq.github.io/beliy-obhodchik/service-transfer.html"
+          }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
       {
         "@type": "Question",
         "name": "Нужен ли мне сервер?",
@@ -261,6 +312,8 @@
           "@type": "Answer",
           "text": "Сообщите в бот модель устройства и на каком шаге возникла проблема. Подключение может зависеть от провайдера, оборудования и текущих ограничений сети."
         }
+      }
+    ]
       }
     ]
   }

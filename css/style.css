@@ -36,7 +36,8 @@ p{margin-top:0}
 .header-inner{min-height:72px;display:flex;align-items:center;gap:30px}
 .brand{display:inline-flex;align-items:center;gap:10px;font-size:1.12rem;font-weight:800;letter-spacing:-.03em;text-decoration:none;white-space:nowrap}
 .brand-logo{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--grad);color:#fff;box-shadow:0 6px 16px rgba(109,94,252,.35)}
-.brand>span:last-child{color:var(--violet)}
+.brand>span:last-child{color:#5a4bd6}
+.site-footer .brand>span:last-child{color:#8f7fff}
 .nav{display:flex;gap:6px;margin-left:auto}
 .nav a{padding:9px 14px;border-radius:999px;font-size:.9rem;font-weight:600;text-decoration:none;color:var(--muted);transition:background .2s,color .2s}
 .nav a:hover{background:#fff;color:var(--ink);box-shadow:var(--shadow-sm)}
@@ -110,10 +111,11 @@ p{margin-top:0}
 .section{padding:clamp(70px,9vw,120px) 0}
 .section-heading{display:grid;grid-template-columns:1fr minmax(240px,380px);align-items:end;gap:40px;margin-bottom:48px}
 .section-heading>p{color:var(--muted);margin-bottom:6px}
-.eyebrow{margin-bottom:16px;font-size:.74rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--violet)}
+.eyebrow{margin-bottom:16px;font-size:.74rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#5a4bd6}
+.section-dark .eyebrow{color:#8f7fff}
 .eyebrow.light{color:rgba(255,255,255,.75)}
 .muted{color:var(--muted)}
-.muted a{color:var(--violet);font-weight:700}
+.muted a{color:#5a4bd6;font-weight:700}
 
 /* ============ Service cards ============ */
 .service-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
@@ -125,7 +127,7 @@ p{margin-top:0}
 .service-card:hover .card-icon{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35)}
 .service-card>*{position:relative;z-index:1}
 .card-icon{display:grid;place-items:center;width:52px;height:52px;margin-bottom:20px;border-radius:15px;background:linear-gradient(135deg,#eeebff,#f6f2ff);border:1px solid #e6e1ff;color:var(--violet);transition:background .25s,color .25s,border-color .25s}
-.card-index{order:-1;margin-bottom:14px;font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#98a0b0}
+.card-index{order:-1;margin-bottom:14px;font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#5f6a7d}
 .service-card h3{margin-bottom:10px}
 .service-card p{color:var(--muted);font-size:.95rem;margin-bottom:0}
 .card-bottom{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:26px;padding-top:20px;border-top:1px solid var(--line);font-size:.92rem;transition:border-color .25s}
