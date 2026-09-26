@@ -194,7 +194,7 @@ details p{color:var(--muted);max-width:700px;margin:0 4px 20px}
 
 /* ============ Service detail pages ============ */
 .breadcrumbs{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:28px 0;color:var(--muted);font-size:.84rem}
-.breadcrumbs a{text-decoration:none;font-weight:600}
+.breadcrumbs a{text-decoration:none;font-weight:600;display:inline-flex;align-items:center;min-height:44px}
 .breadcrumbs a:hover{color:var(--violet)}
 .breadcrumbs span[aria-current]{font-weight:700;color:var(--ink)}
 .detail-hero{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:64px;padding:40px 0 80px;align-items:start}
@@ -266,7 +266,7 @@ details p{color:var(--muted);max-width:700px;margin:0 4px 20px}
 .text-link:hover{gap:13px;color:var(--violet)}
 .footer-inner{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;padding-bottom:34px}
 .footer-inner nav{display:flex;gap:22px;flex-wrap:wrap}
-.footer-inner nav a{color:#c9cfdb;text-decoration:none;font-size:.9rem}
+.footer-inner nav a{color:#c9cfdb;text-decoration:none;font-size:.9rem;display:inline-flex;align-items:center;min-height:44px}
 .footer-inner nav a:hover{color:var(--lime)}
 .footer-inner small{color:#767f92;font-size:.8rem}
 
