@@ -35,11 +35,11 @@ jobs:
       - name: Compile all modules
         run: |
           python -m py_compile telegram_bot.py support_bot.py keenetic_config_generator.py sni_manager.py
-          python -m py_compile test_crypto_payment.py test_dpi_flow.py test_handlers.py test_menu_flow.py test_stars_payment.py test_support.py test_support_bot.py test_security_and_p2.py test_defense_paths.py test_config_generator.py test_landing_html.py
+          python -m py_compile test_crypto_payment.py test_dpi_flow.py test_handlers.py test_menu_flow.py test_stars_payment.py test_support.py test_support_bot.py test_security_and_p2.py test_defense_paths.py test_config_generator.py test_landing_html.py tests/test_site_pages.py
 
       - name: Run tests individually
         run: |
-          for t in test_menu_flow.py test_crypto_payment.py test_stars_payment.py test_support.py test_handlers.py test_dpi_flow.py test_support_bot.py test_security_and_p2.py test_defense_paths.py test_config_generator.py test_landing_html.py; do
+          for t in test_menu_flow.py test_crypto_payment.py test_stars_payment.py test_support.py test_handlers.py test_dpi_flow.py test_support_bot.py test_security_and_p2.py test_defense_paths.py test_config_generator.py test_landing_html.py tests/test_site_pages.py; do
             echo "=== $t ==="
             if out=$(python -u "$t" 2>&1); then
               echo "PASS $t"
