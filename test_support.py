@@ -71,7 +71,6 @@ for key, (title, _, models) in tb.ROUTER_CATEGORIES.items():
 print("OK каталог роутеров: 4 категории и модели валидны")
 
 # Команда /router зарегистрирована
-from telegram_bot import AutoConfigBot
 bots = [h for h in bot.bot.message_handlers if h.get('filters', {}).get('commands')]
 assert any("router" in h['filters']['commands'] for h in bots), "/router не зарегистрирован"
 print("OK /router зарегистрирован")

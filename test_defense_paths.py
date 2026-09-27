@@ -219,7 +219,6 @@ print("OK 7/7: _save_setup_and_deliver с пустыми данными ниче
 # ============ 8. Backoff-гейт на «свежей» машине (time.monotonic() < 60) ============
 # Регрессия CI: .get(pid, 0) + monotonic<60 заставлял пропускать СВЕЖИЕ оплаты —
 # доставка молча не выполнялась (кнопки не показывались, бюджет в очереди).
-import time as _time
 ctx = _Ctx()
 bot = _make_bot(ctx)
 bot.crypto_pay = SimpleNamespace(

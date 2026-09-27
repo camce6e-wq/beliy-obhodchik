@@ -49,21 +49,21 @@ USER = 777
 CHAT = 888
 
 
-def msg(text="/start"):
+def msg(text="/start", user=USER, chat=CHAT):
     return SimpleNamespace(
-        from_user=SimpleNamespace(id=USER),
-        chat=SimpleNamespace(id=CHAT, type='private'),
+        from_user=SimpleNamespace(id=user),
+        chat=SimpleNamespace(id=chat, type='private'),
         message_id=1,
         text=text,
     )
 
 
-def call(data):
+def call(data, user=USER, chat=CHAT):
     return SimpleNamespace(
         id="cbq_1",
         data=data,
-        from_user=SimpleNamespace(id=USER),
-        message=SimpleNamespace(chat=SimpleNamespace(id=CHAT, type='private')),
+        from_user=SimpleNamespace(id=user),
+        message=SimpleNamespace(chat=SimpleNamespace(id=chat, type='private')),
     )
 
 
@@ -262,7 +262,68 @@ for cmd, min_len, label in (("guide", 500, "инструкция"), ("faq", 500,
     assert any(s["markup"] for s in sent), f"/{cmd} должен давать главное меню"
     print(f"OK 14/14: /{cmd} -> {label} ({len(body)} симв. + меню)")
 
-# 15) Markdown-парity: Telegram отвечает 400 «can't parse entities», если
+# 15) Пагинация /myorders: 7 заказов у изолированного юзера -> 2 части (5+2), меню на последней
+pg_user, pg_chat = 999991, 1999991
+up_user, up_chat = 999992, 1999992
+ps = tb.PaymentSystem()
+conn = ps._connect()
+conn.execute("DELETE FROM orders WHERE user_id IN (?, ?)", (pg_user, up_user))
+conn.execute("DELETE FROM payments WHERE user_id IN (?, ?)", (pg_user, up_user))
+conn.commit()
+conn.close()
+for i in range(7):
+    pid = ps.create_payment(pg_user, "pager", payment_id=f"pg_paginate_{i:02d}")
+    ps.confirm_payment(pid)
+    ps.create_order(payment_id=pid, user_id=pg_user, config_path="",
+                    server_ip="95.217.1.1", uuid=f"page_{i:02d}", sni_hostname="api.notion.com")
+
+orders_handler = None
+for h in bot.bot.message_handlers:
+    cmds = h.get("filters", {}).get("commands")
+    if isinstance(cmds, list) and "myorders" in cmds:
+        orders_handler = h["function"]
+        break
+assert orders_handler, "хендлер /myorders не найден"
+sent.clear()
+bot.last_cmd.clear()
+orders_handler(msg("/myorders", user=pg_user, chat=pg_chat))
+parts = [s for s in sent if "Ваши заказы" in s["text"]]
+assert len(parts) == 2, f"/myorders при 7 заказах должен прислать 2 части, пришло {len(parts)}"
+assert "(часть 1/2)" in parts[0]["text"] and "(часть 2/2)" in parts[1]["text"], \
+    f"нет нумерации частей: {parts[0]['text'][:80]!r} | {parts[1]['text'][:80]!r}"
+assert sent[-1]["markup"], "последняя часть должна нести главное меню"
+assert all(s["parse_mode"] == "Markdown" for s in sent), "все части должны быть в Markdown"
+print("OK 15/15: /myorders пагинация — 7 заказов в 2 части (5+2), меню на последней")
+
+# 16) update_existing: >6 активных заказов -> 6 + «Показать ещё», затем остаток
+ps2 = tb.PaymentSystem()
+for i in range(7):
+    pid = ps2.create_payment(up_user, "updater", payment_id=f"up_update_{i:02d}")
+    ps2.confirm_payment(pid)
+    ps2.create_order(payment_id=pid, user_id=up_user, config_path="",
+                    server_ip="95.217.1.1", uuid=f"upd_{i:02d}", sni_hostname="api.notion.com")
+bot.user_data[up_user] = {}
+
+sent.clear()
+bot.last_cmd.clear()
+cb_handler(call("update_existing", user=up_user, chat=up_chat))
+first_rows = sent[-1]["markup"].to_dict()["inline_keyboard"]
+first_docs = [b["callback_data"] for row in first_rows for b in row if "callback_data" in b]
+assert len([d for d in first_docs if d.startswith("update_order_")]) == 6, \
+    f"первый экран должен показать 6 заказов: {first_docs}"
+assert "update_more_6" in first_docs, "должна быть кнопка «Показать ещё»"
+
+sent.clear()
+bot.last_cmd.clear()
+cb_handler(call("update_more_6", user=up_user, chat=up_chat))
+second_rows = sent[-1]["markup"].to_dict()["inline_keyboard"]
+second_docs = [b["callback_data"] for row in second_rows for b in row if "callback_data" in b]
+assert len([d for d in second_docs if d.startswith("update_order_")]) == 1, \
+    f"вторая страница — 1 оставшийся заказ: {second_docs}"
+assert not any(d.startswith("update_more_") for d in second_docs), "запас исчерпан — «ещё» быть не должно"
+print("OK 16/16: update_existing — 6 заказов + «Показать ещё» → 1 оставшийся без повтора")
+
+# 17) Markdown-парity: Telegram отвечает 400 «can't parse entities», если
 # entity (*, _, [, `) не закрыты. Так ломались /faq и /guide: 3 подчёркивания
 # в @beliy_obhodchik_support_bot открывали незакрытый italic.
 def md_balance(text):
@@ -317,6 +378,6 @@ assert not bad, f"битый Markdown: {bad[0][1]} :: {bad[0][0][:120]!r}"
 for t in tb.AutoConfigBot.SUPPORT_ANSWERS.values():
     r = md_balance(t)
     assert r is None, f"SUPPORT_ANSWERS: {r} :: {t[:80]!r}"
-print(f"OK 15/15: markdown-parity {len(md_texts)} сообщений + SUPPORT_ANSWERS — entity закрыты")
+print(f"OK 17/17: markdown-parity {len(md_texts)} сообщений + SUPPORT_ANSWERS — entity закрыты")
 
 print("\nВСЕ ТЕСТЫ ПРОЙДЕНЫ")
