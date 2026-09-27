@@ -1,0 +1,34 @@
+name: smoke
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  site:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check public site URLs (GitHub Pages)
+        run: |
+          set -e
+          base="https://camce6e-wq.github.io/beliy-obhodchik"
+          for u in "" css/style.css service-full.html service-dpi.html service-claude.html service-transfer.html webapp/index.html robots.txt sitemap.xml manifest.webmanifest img/og-image.png; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$base/$u")
+            echo "$code /$u"
+            test "$code" = "200" || { echo "::error ::/$u -> $code"; exit 1; }
+          done
+
+  bot_api:
+    if: ${{ secrets.BOT_TOKEN != '' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Telegram getMe (token alive)
+        run: |
+          set -e
+          resp=$(curl -s --max-time 20 "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/getMe")
+          echo "$resp" | grep -q '"ok":true' || { echo "::error ::getMe failed: $resp"; exit 1; }
+          username=$(echo "$resp" | sed -n 's/.*"username":"\([^"]*\)".*/\1/p')
+          echo "getMe ok: @$username"
