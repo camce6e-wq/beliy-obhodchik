@@ -22,13 +22,15 @@ jobs:
           done
 
   bot_api:
-    if: ${{ secrets.BOT_TOKEN != '' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Telegram getMe (token alive)
+        if: ${{ secrets.BOT_TOKEN != '' }}
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
           set -e
-          resp=$(curl -s --max-time 20 "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/getMe")
+          resp=$(curl -s --max-time 20 "https://api.telegram.org/bot${BOT_TOKEN}/getMe")
           echo "$resp" | grep -q '"ok":true' || { echo "::error ::getMe failed: $resp"; exit 1; }
           username=$(echo "$resp" | sed -n 's/.*"username":"\([^"]*\)".*/\1/p')
           echo "getMe ok: @$username"
