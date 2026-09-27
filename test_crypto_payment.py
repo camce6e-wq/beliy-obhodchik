@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Офлайн-тест интеграции Crypto Bot: создание счёта -> оплата -> доставка конфига."""
-import os
-import sys
+
 import hashlib
-import tempfile
+import os
 import sqlite3
+import sys
+import tempfile
 from types import SimpleNamespace
 
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import telegram_bot as tb
 
@@ -71,11 +72,11 @@ CHAT = 222
 
 call = SimpleNamespace(
     from_user=SimpleNamespace(id=USER),
-    message=SimpleNamespace(chat=SimpleNamespace(id=CHAT, type='private')),
+    message=SimpleNamespace(chat=SimpleNamespace(id=CHAT, type="private")),
 )
 
 # Берём реальный обработчик колбэков, зарегистрированный в register_handlers
-handler = bot.bot.callback_query_handlers[0]['function']
+handler = bot.bot.callback_query_handlers[0]["function"]
 assert handler is not None, "колбэк-хендлер не зарегистрирован"
 
 pid = bot.payment_system.create_payment(USER, "tester")
@@ -96,11 +97,14 @@ assert len(fake.created) == 1, "create_invoice не вызван"
 inv = fake.created[0]
 
 con = sqlite3.connect(DB)
-row = con.execute("SELECT status, pay_url FROM invoices WHERE invoice_id=?", (inv["invoice_id"],)).fetchone()
+row = con.execute(
+    "SELECT status, pay_url FROM invoices WHERE invoice_id=?", (inv["invoice_id"],)
+).fetchone()
 con.close()
 assert row and row[0] == "active", "счёт не записан в БД"
 has_pay_button = any(
-    m and any(
+    m
+    and any(
         b.to_dict().get("url", "").startswith("https://t.me/CryptoBot")
         for row2 in m.keyboard
         for b in row2
@@ -108,7 +112,9 @@ has_pay_button = any(
     for m in sent_markups
 )
 assert has_pay_button, "не отправлена кнопка оплаты с pay_url"
-assert bot.user_states[USER] == "awaiting_payment", "пользователь не должен быть завершён до оплаты"
+assert bot.user_states[USER] == "awaiting_payment", (
+    "пользователь не должен быть завершён до оплаты"
+)
 
 print("OK 1/3: счёт создан, pay_url отправлен, pending + БД заполнены")
 
@@ -118,9 +124,11 @@ inv["status"] = "paid"
 fake.paid = [inv]
 bot._process_paid_invoices(fake.get_paid_invoices())
 
+
 def _has_install_buttons():
     return any(
-        m and any(
+        m
+        and any(
             b.to_dict().get("callback_data") in ("install_ssh", "install_self")
             for row2 in m.keyboard
             for b in row2
@@ -128,15 +136,25 @@ def _has_install_buttons():
         for m in sent_markups
     )
 
-dbg_buttons = [b.to_dict().get("callback_data") for m in sent_markups if m for row2 in m.keyboard for b in row2]
-print("DEBUG: markups=%r docs=%d msg_tail=%r backoff=%d pending=%r" % (
-    dbg_buttons, len(sent_docs), sent_messages[-2:], len(bot._delivery_backoff), dict(bot.pending_payments)))
+
+dbg_buttons = [
+    b.to_dict().get("callback_data")
+    for m in sent_markups
+    if m
+    for row2 in m.keyboard
+    for b in row2
+]
+print(
+    f"DEBUG: markups={dbg_buttons!r} docs={len(sent_docs)} msg_tail={sent_messages[-2:]!r} backoff={len(bot._delivery_backoff)} pending={dict(bot.pending_payments)}"
+)
 assert _has_install_buttons(), "не показаны кнопки выбора установки VPS"
 assert len(sent_docs) == 0, "документ не должен отправляться до установки ключей"
 
 con = sqlite3.connect(DB)
 conf = con.execute("SELECT status FROM payments WHERE payment_id=?", (pid,)).fetchone()
-invst = con.execute("SELECT status FROM invoices WHERE invoice_id=?", (inv["invoice_id"],)).fetchone()
+invst = con.execute(
+    "SELECT status FROM invoices WHERE invoice_id=?", (inv["invoice_id"],)
+).fetchone()
 con.close()
 assert conf and conf[0] == "paid", "оплата не подтверждена"
 assert invst and invst[0] == "paid", "счёт не помечен paid"
@@ -152,13 +170,17 @@ bot.payment_system.save_vps_setup(
     sni_hostname="api.notion.com",
     install_method="self",
 )
-ok = bot.generate_and_send_config(USER, CHAT, data={
-    "payment_id": pid,
-    "user_id": USER,
-    "chat_id": CHAT,
-    "server_ip": "45.88.101.5",
-    "sni_hostname": "api.notion.com",
-})
+ok = bot.generate_and_send_config(
+    USER,
+    CHAT,
+    data={
+        "payment_id": pid,
+        "user_id": USER,
+        "chat_id": CHAT,
+        "server_ip": "45.88.101.5",
+        "sni_hostname": "api.notion.com",
+    },
+)
 assert ok, "не удалось сгенерировать конфиг после установки ключей"
 assert len(sent_docs) == 1, "конфиг не отправлен после установки"
 con = sqlite3.connect(DB)
@@ -166,20 +188,29 @@ order = con.execute("SELECT order_id FROM orders WHERE payment_id=?", (pid,)).fe
 con.close()
 assert order, "заказ не создан"
 
-print("OK 2/3: оплата подтверждена, кнопки установки показаны, после ключей конфиг доставлен, счёт paid")
+print(
+    "OK 2/3: оплата подтверждена, кнопки установки показаны, после ключей конфиг доставлен, счёт paid"
+)
+
 
 # 2.5) Парсинг ответа getInvoices вида {"items": [...]}
 class _RealCrypto(tb.CryptoPayClient):
     def _post(self, method, payload=None):
-        return {"items": [
-            {"invoice_id": "i1", "payload": pid, "status": "paid"},
-        ]} if method == "getInvoices" else {}
+        return (
+            {
+                "items": [
+                    {"invoice_id": "i1", "payload": pid, "status": "paid"},
+                ]
+            }
+            if method == "getInvoices"
+            else {}
+        )
 
 
 real = _RealCrypto("x")
 got = real.get_paid_invoices()
 assert len(got) == 1 and got[0]["payload"] == pid, "формат getInvoices разобран неверно"
-print("OK 2.5/3: getInvoices {\"items\": [...]} разбирается корректно")
+print('OK 2.5/3: getInvoices {"items": [...]} разбирается корректно')
 
 # 3) Перезапуск: НЕоплаченный счёт восстанавливается из БД (оплаченные не восстанавливаются)
 pid2 = bot.payment_system.create_payment(USER, "tester")

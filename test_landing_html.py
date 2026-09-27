@@ -1,8 +1,22 @@
 import sys
 from html.parser import HTMLParser
 
-VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input",
-        "link", "meta", "param", "source", "track", "wbr"}
+VOID = {
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
+}
 
 
 class Checker(HTMLParser):
@@ -22,12 +36,15 @@ class Checker(HTMLParser):
         if tag in VOID:
             return
         if not self.stack:
-            self.errors.append("line %d: closing </%s> with nothing open" % (self.getpos()[0], tag))
+            self.errors.append(
+                f"line {self.getpos()[0]}: closing </{tag}> with nothing open"
+            )
             return
         top, pos = self.stack.pop()
         if top != tag:
-            self.errors.append("line %d: </%s> closes <%s> opened at line %d"
-                               % (self.getpos()[0], tag, top, pos[0]))
+            self.errors.append(
+                f"line {self.getpos()[0]}: </{tag}> closes <{top}> opened at line {pos[0]}"
+            )
 
 
 p = Checker()
@@ -37,11 +54,11 @@ p.close()
 
 if p.stack:
     for tag, pos in p.stack:
-        p.errors.append("line %d: <%s> never closed" % (pos[0], tag))
+        p.errors.append(f"line {pos[0]}: <{tag}> never closed")
 
-print("tags parsed: %d" % p.tags)
+print(f"tags parsed: {p.tags}")
 if p.errors:
-    print("STRUCTURE ERRORS (%d):" % len(p.errors))
+    print(f"STRUCTURE ERRORS ({len(p.errors)}):")
     for e in p.errors[:20]:
         print("  " + e)
     sys.exit(1)

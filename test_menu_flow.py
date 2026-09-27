@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Офлайн-тест кнопочного меню: /start -> inline-кнопки, cmd_* диспетчер,
 отмена и «пустой экран» -> возврат к приветствию."""
+
 import sys
 from types import SimpleNamespace
 
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import telegram_bot as tb
 
@@ -18,8 +19,14 @@ md_texts = []
 
 
 def fake_send_message(chat_id, text, **kw):
-    sent.append({"chat_id": chat_id, "text": text, "markup": kw.get("reply_markup"),
-                 "parse_mode": kw.get("parse_mode")})
+    sent.append(
+        {
+            "chat_id": chat_id,
+            "text": text,
+            "markup": kw.get("reply_markup"),
+            "parse_mode": kw.get("parse_mode"),
+        }
+    )
     if kw.get("parse_mode") == "Markdown":
         md_texts.append(text)
     return SimpleNamespace(message_id=1)
@@ -52,7 +59,7 @@ CHAT = 888
 def msg(text="/start", user=USER, chat=CHAT):
     return SimpleNamespace(
         from_user=SimpleNamespace(id=user),
-        chat=SimpleNamespace(id=chat, type='private'),
+        chat=SimpleNamespace(id=chat, type="private"),
         message_id=1,
         text=text,
     )
@@ -63,7 +70,7 @@ def call(data, user=USER, chat=CHAT):
         id="cbq_1",
         data=data,
         from_user=SimpleNamespace(id=user),
-        message=SimpleNamespace(chat=SimpleNamespace(id=chat, type='private')),
+        message=SimpleNamespace(chat=SimpleNamespace(id=chat, type="private")),
     )
 
 
@@ -83,17 +90,22 @@ m = sent[0]
 assert "БелыйОбходчик" in m["text"]
 assert "/buy" not in m["text"], "в приветствии не должно быть ссылок на команды"
 kb0 = m["markup"]
-assert kb0 is not None and isinstance(kb0, tb.types.ReplyKeyboardRemove), \
+assert kb0 is not None and isinstance(kb0, tb.types.ReplyKeyboardRemove), (
     "первое сообщение должно снимать нижнюю reply-клавиатуру"
+)
 kb = sent[1]["markup"]
 assert kb is not None, "приветствие должно быть с inline-кнопками"
 assert kb.to_dict().get("inline_keyboard"), "это должны быть inline-кнопки"
-print(f"OK 1/5: /start -> приветствие+remove + {sum(len(r) for r in kb.to_dict()['inline_keyboard'])} inline-кнопок")
+print(
+    f"OK 1/5: /start -> приветствие+remove + {sum(len(r) for r in kb.to_dict()['inline_keyboard'])} inline-кнопок"
+)
 
 # 2) cmd_* диспетчер: «Купить настройку» -> инструкция с ценами -> ввод IP -> кнопки оплаты
 sent.clear()
 bot.last_cmd.clear()
-cb_handler = [h for h in bot.bot.callback_query_handlers if 'function' in h][-1]['function']
+cb_handler = [h for h in bot.bot.callback_query_handlers if "function" in h][-1][
+    "function"
+]
 cb_handler(call("cmd_buy"))
 assert sent, "cmd_buy должен что-то отправить"
 text = " ".join(s["text"] for s in sent)
@@ -138,11 +150,20 @@ menus = tb.AutoConfigBot._main_menu_inline_keyboard(bot)
 rows = menus.to_dict()["inline_keyboard"]
 labels = [b["callback_data"] for row in rows for b in row if "callback_data" in b]
 webapp_buttons = [b["web_app"]["url"] for row in rows for b in row if "web_app" in b]
-expected = {"cmd_buy", "cmd_router", "cmd_dpi", "cmd_vps", "cmd_guide",
-            "cmd_faq", "cmd_myorders", "cmd_support"}
+expected = {
+    "cmd_buy",
+    "cmd_router",
+    "cmd_dpi",
+    "cmd_vps",
+    "cmd_guide",
+    "cmd_faq",
+    "cmd_myorders",
+    "cmd_support",
+}
 assert set(labels) == expected, f"набор кнопок = {set(labels)}"
-assert len(webapp_buttons) == 1 and "/webapp/" in webapp_buttons[0], \
+assert len(webapp_buttons) == 1 and "/webapp/" in webapp_buttons[0], (
     f"в меню должна быть кнопка Mini App: {webapp_buttons}"
+)
 for cb in sorted(expected):
     sent.clear()
     bot.last_cmd.clear()
@@ -161,9 +182,18 @@ bot.user_data[USER] = {
     "sni_hostname": "api.notion.com",
 }
 used = [b["callback_data"] for row in rows for b in row if "callback_data" in b]
-known = {"cancel_purchase", "create_new", "install_self", "install_ssh",
-         "make_dpi_payment", "make_payment", "pay_dpi_stars", "pay_stars",
-         "retry_ssh_install", "update_existing"}
+known = {
+    "cancel_purchase",
+    "create_new",
+    "install_self",
+    "install_ssh",
+    "make_dpi_payment",
+    "make_payment",
+    "pay_dpi_stars",
+    "pay_stars",
+    "retry_ssh_install",
+    "update_existing",
+}
 for cb in sorted(known):
     sent.clear()
     bot.last_cmd.clear()
@@ -183,7 +213,9 @@ for key in router_keys:
     bot.last_cmd.clear()
     cb_handler(call(f"router_{key}"))
     assert sent, f"router_{key} должен показывать подборку"
-    assert any(s["markup"] for s in sent), f"router_{key} должен давать путь назад (кнопки)"
+    assert any(s["markup"] for s in sent), (
+        f"router_{key} должен давать путь назад (кнопки)"
+    )
 print(f"OK 8/9: все {len(router_keys)} категорий роутеров показывают подборку с меню")
 
 sent.clear()
@@ -191,8 +223,12 @@ bot.last_cmd.clear()
 pid = tb.PaymentSystem().create_payment(USER, "update_tester")
 bot.user_data[USER] = {"payment_id": pid}
 order_id = bot.payment_system.create_order(
-    payment_id=pid, user_id=USER,
-    config_path="", server_ip="95.217.1.1", uuid="u", sni_hostname="api.notion.com",
+    payment_id=pid,
+    user_id=USER,
+    config_path="",
+    server_ip="95.217.1.1",
+    uuid="u",
+    sni_hostname="api.notion.com",
 )
 cb_handler(call(f"update_{order_id}"))
 assert sent, "update_<order> должен отвечать"
@@ -226,26 +262,35 @@ sent.clear()
 bot.last_cmd.clear()
 deep(msg("/start vps"))
 text = " ".join(s["text"] for s in sent)
-assert "1500" in text and "750" in text, "deep-link vps должен открывать покупку с ценами"
+assert "1500" in text and "750" in text, (
+    "deep-link vps должен открывать покупку с ценами"
+)
 print("OK 11/13: /start vps -> покупка полного пакета")
 
 sent.clear()
 bot.last_cmd.clear()
 deep(msg("/start dpi"))
 text = " ".join(s["text"] for s in sent)
-assert "1000" in text and "500" in text, "deep-link dpi должен открывать заказ обхода DPI"
+assert "1000" in text and "500" in text, (
+    "deep-link dpi должен открывать заказ обхода DPI"
+)
 print("OK 12/13: /start dpi -> заказ обхода DPI")
 
 sent.clear()
 bot.last_cmd.clear()
 deep(msg("/start claude"))
 text = " ".join(s["text"] for s in sent)
-assert "по запросу" in text.lower() or "запросу" in text.lower(), "deep-link claude -> сообщение 'по запросу'"
+assert "по запросу" in text.lower() or "запросу" in text.lower(), (
+    "deep-link claude -> сообщение 'по запросу'"
+)
 assert any(s["markup"] for s in sent), "должна быть кнопка поддержки"
 print("OK 13/13: /start claude -> запрос в поддержку")
 
 # 14) /guide и /faq — команды из меню BotFather обязаны отвечать
-for cmd, min_len, label in (("guide", 500, "инструкция"), ("faq", 500, "частые вопросы")):
+for cmd, min_len, label in (
+    ("guide", 500, "инструкция"),
+    ("faq", 500, "частые вопросы"),
+):
     handler = None
     for h in bot.bot.message_handlers:
         cmds = h.get("filters", {}).get("commands")
@@ -258,7 +303,9 @@ for cmd, min_len, label in (("guide", 500, "инструкция"), ("faq", 500,
     handler(msg(f"/{cmd}"))
     assert sent, f"/{cmd} должен отвечать"
     body = " ".join(s["text"] for s in sent)
-    assert len(body) >= min_len, f"/{cmd}: ответ слишком короткий ({len(body)} симв.) — ловит catch-all"
+    assert len(body) >= min_len, (
+        f"/{cmd}: ответ слишком короткий ({len(body)} симв.) — ловит catch-all"
+    )
     assert any(s["markup"] for s in sent), f"/{cmd} должен давать главное меню"
     print(f"OK 14/14: /{cmd} -> {label} ({len(body)} симв. + меню)")
 
@@ -274,8 +321,14 @@ conn.close()
 for i in range(7):
     pid = ps.create_payment(pg_user, "pager", payment_id=f"pg_paginate_{i:02d}")
     ps.confirm_payment(pid)
-    ps.create_order(payment_id=pid, user_id=pg_user, config_path="",
-                    server_ip="95.217.1.1", uuid=f"page_{i:02d}", sni_hostname="api.notion.com")
+    ps.create_order(
+        payment_id=pid,
+        user_id=pg_user,
+        config_path="",
+        server_ip="95.217.1.1",
+        uuid=f"page_{i:02d}",
+        sni_hostname="api.notion.com",
+    )
 
 orders_handler = None
 for h in bot.bot.message_handlers:
@@ -288,11 +341,16 @@ sent.clear()
 bot.last_cmd.clear()
 orders_handler(msg("/myorders", user=pg_user, chat=pg_chat))
 parts = [s for s in sent if "Ваши заказы" in s["text"]]
-assert len(parts) == 2, f"/myorders при 7 заказах должен прислать 2 части, пришло {len(parts)}"
-assert "(часть 1/2)" in parts[0]["text"] and "(часть 2/2)" in parts[1]["text"], \
+assert len(parts) == 2, (
+    f"/myorders при 7 заказах должен прислать 2 части, пришло {len(parts)}"
+)
+assert "(часть 1/2)" in parts[0]["text"] and "(часть 2/2)" in parts[1]["text"], (
     f"нет нумерации частей: {parts[0]['text'][:80]!r} | {parts[1]['text'][:80]!r}"
+)
 assert sent[-1]["markup"], "последняя часть должна нести главное меню"
-assert all(s["parse_mode"] == "Markdown" for s in sent), "все части должны быть в Markdown"
+assert all(s["parse_mode"] == "Markdown" for s in sent), (
+    "все части должны быть в Markdown"
+)
 print("OK 15/15: /myorders пагинация — 7 заказов в 2 части (5+2), меню на последней")
 
 # 16) update_existing: >6 активных заказов -> 6 + «Показать ещё», затем остаток
@@ -300,28 +358,45 @@ ps2 = tb.PaymentSystem()
 for i in range(7):
     pid = ps2.create_payment(up_user, "updater", payment_id=f"up_update_{i:02d}")
     ps2.confirm_payment(pid)
-    ps2.create_order(payment_id=pid, user_id=up_user, config_path="",
-                    server_ip="95.217.1.1", uuid=f"upd_{i:02d}", sni_hostname="api.notion.com")
+    ps2.create_order(
+        payment_id=pid,
+        user_id=up_user,
+        config_path="",
+        server_ip="95.217.1.1",
+        uuid=f"upd_{i:02d}",
+        sni_hostname="api.notion.com",
+    )
 bot.user_data[up_user] = {}
 
 sent.clear()
 bot.last_cmd.clear()
 cb_handler(call("update_existing", user=up_user, chat=up_chat))
 first_rows = sent[-1]["markup"].to_dict()["inline_keyboard"]
-first_docs = [b["callback_data"] for row in first_rows for b in row if "callback_data" in b]
-assert len([d for d in first_docs if d.startswith("update_order_")]) == 6, \
+first_docs = [
+    b["callback_data"] for row in first_rows for b in row if "callback_data" in b
+]
+assert len([d for d in first_docs if d.startswith("update_order_")]) == 6, (
     f"первый экран должен показать 6 заказов: {first_docs}"
+)
 assert "update_more_6" in first_docs, "должна быть кнопка «Показать ещё»"
 
 sent.clear()
 bot.last_cmd.clear()
 cb_handler(call("update_more_6", user=up_user, chat=up_chat))
 second_rows = sent[-1]["markup"].to_dict()["inline_keyboard"]
-second_docs = [b["callback_data"] for row in second_rows for b in row if "callback_data" in b]
-assert len([d for d in second_docs if d.startswith("update_order_")]) == 1, \
+second_docs = [
+    b["callback_data"] for row in second_rows for b in row if "callback_data" in b
+]
+assert len([d for d in second_docs if d.startswith("update_order_")]) == 1, (
     f"вторая страница — 1 оставшийся заказ: {second_docs}"
-assert not any(d.startswith("update_more_") for d in second_docs), "запас исчерпан — «ещё» быть не должно"
-print("OK 16/16: update_existing — 6 заказов + «Показать ещё» → 1 оставшийся без повтора")
+)
+assert not any(d.startswith("update_more_") for d in second_docs), (
+    "запас исчерпан — «ещё» быть не должно"
+)
+print(
+    "OK 16/16: update_existing — 6 заказов + «Показать ещё» → 1 оставшийся без повтора"
+)
+
 
 # 17) Markdown-парity: Telegram отвечает 400 «can't parse entities», если
 # entity (*, _, [, `) не закрыты. Так ломались /faq и /guide: 3 подчёркивания
@@ -373,11 +448,14 @@ def md_balance(text):
         return "незакрытая ["
     return None
 
+
 bad = [(t, md_balance(t)) for t in md_texts if md_balance(t)]
 assert not bad, f"битый Markdown: {bad[0][1]} :: {bad[0][0][:120]!r}"
 for t in tb.AutoConfigBot.SUPPORT_ANSWERS.values():
     r = md_balance(t)
     assert r is None, f"SUPPORT_ANSWERS: {r} :: {t[:80]!r}"
-print(f"OK 17/17: markdown-parity {len(md_texts)} сообщений + SUPPORT_ANSWERS — entity закрыты")
+print(
+    f"OK 17/17: markdown-parity {len(md_texts)} сообщений + SUPPORT_ANSWERS — entity закрыты"
+)
 
 print("\nВСЕ ТЕСТЫ ПРОЙДЕНЫ")

@@ -1,19 +1,38 @@
 import re
 import sys
 from collections import Counter
-from pathlib import Path
 from html.parser import HTMLParser
+from pathlib import Path
 
 _root = Path(__file__).resolve().parent
 while not (_root / "index.html").exists() and _root != _root.parent:
     _root = _root.parent
 ROOT = _root
-PAGES = ["index.html", "service-full.html", "service-dpi.html",
-         "service-claude.html", "service-transfer.html",
-         "webapp/index.html"]
+PAGES = [
+    "index.html",
+    "service-full.html",
+    "service-dpi.html",
+    "service-claude.html",
+    "service-transfer.html",
+    "webapp/index.html",
+]
 
-VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input",
-        "link", "meta", "param", "source", "track", "wbr"}
+VOID = {
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
+}
 
 
 class Checker(HTMLParser):
@@ -31,12 +50,15 @@ class Checker(HTMLParser):
         if tag in VOID:
             return
         if not self.stack:
-            self.errors.append("line %d: closing </%s> with nothing open" % (self.getpos()[0], tag))
+            self.errors.append(
+                f"line {self.getpos()[0]}: closing </{tag}> with nothing open"
+            )
             return
         top, pos = self.stack.pop()
         if top != tag:
-            self.errors.append("line %d: </%s> closes <%s> opened at line %d"
-                               % (self.getpos()[0], tag, top, pos[0]))
+            self.errors.append(
+                f"line {self.getpos()[0]}: </{tag}> closes <{top}> opened at line {pos[0]}"
+            )
 
 
 def page_errors(path: Path):
@@ -45,7 +67,7 @@ def page_errors(path: Path):
         p.feed(f.read())
     p.close()
     for tag, pos in p.stack:
-        p.errors.append("line %d: <%s> never closed" % (pos[0], tag))
+        p.errors.append(f"line {pos[0]}: <{tag}> never closed")
     return p.errors
 
 
@@ -56,7 +78,13 @@ def page_ids(path: Path):
 
 def internal_links(text: str):
     hrefs = re.findall(r'href="([^"]+)"', text)
-    return [h for h in hrefs if not re.match(r'^(https?:|mailto:|tel:)//', h) and not h.startswith("#") and not h.startswith("//")]
+    return [
+        h
+        for h in hrefs
+        if not re.match(r"^(https?:|mailto:|tel:)//", h)
+        and not h.startswith("#")
+        and not h.startswith("//")
+    ]
 
 
 def main():
@@ -65,45 +93,51 @@ def main():
     for name in PAGES:
         path = ROOT / name
         if not path.exists():
-            errors.append("%s: file missing" % name)
+            errors.append(f"{name}: file missing")
             continue
-        errors += ["%s: %s" % (name, e) for e in page_errors(path)]
+        errors += [f"{name}: {e}" for e in page_errors(path)]
         html = path.read_text(encoding="utf-8")
         if html.count("<h1") != 1:
-            errors.append("%s: expected exactly one <h1>, got %d" % (name, html.count("<h1")))
+            errors.append(f"{name}: expected exactly one <h1>, got {html.count('<h1')}")
         if not re.search(r'<html[^>]*lang="ru"', html):
-            errors.append("%s: html[lang] is not 'ru'" % name)
+            errors.append(f"{name}: html[lang] is not 'ru'")
         if not re.search(r'<meta name="description" content="[^"]+', html):
-            errors.append("%s: missing non-empty meta description" % name)
-        title = re.search(r"<title>(.*?)</title>", html, re.S)
+            errors.append(f"{name}: missing non-empty meta description")
+        title = re.search(r"<title>(.*?)</title>", html, re.DOTALL)
         if title and not (10 <= len(title.group(1).strip()) <= 70):
-            errors.append("%s: title length %d outside 10..70" % (name, len(title.group(1).strip())))
+            errors.append(
+                f"{name}: title length {len(title.group(1).strip())} outside 10..70"
+            )
         desc = re.search(r'<meta name="description" content="([^"]*)"', html)
         if desc and not (50 <= len(desc.group(1)) <= 165):
-            errors.append("%s: description length %d outside 50..165" % (name, len(desc.group(1))))
+            errors.append(
+                f"{name}: description length {len(desc.group(1))} outside 50..165"
+            )
         if 'rel="canonical"' not in html:
-            errors.append("%s: missing canonical" % name)
+            errors.append(f"{name}: missing canonical")
         if 'property="og:title"' not in html:
-            errors.append("%s: missing og:title" % name)
+            errors.append(f"{name}: missing og:title")
         if 'property="og:image"' not in html:
-            errors.append("%s: missing og:image" % name)
+            errors.append(f"{name}: missing og:image")
         if "<title>" not in html or html.count("<title>") != 1:
-            errors.append("%s: expected exactly one <title>" % name)
+            errors.append(f"{name}: expected exactly one <title>")
         if html.count('class="skip-link"') == 0:
-            errors.append("%s: missing skip-link" % name)
+            errors.append(f"{name}: missing skip-link")
         navs = re.findall(r"<nav\b[^>]*>", html)
         if any("aria-label=" not in n for n in navs):
-            errors.append("%s: <nav> missing aria-label" % name)
+            errors.append(f"{name}: <nav> missing aria-label")
         for img in re.findall(r"<img\b[^>]*>", html):
             m = re.search(r'alt="([^"]*)"', img)
             if m is None or not m.group(1).strip():
-                errors.append("%s: <img> without alt text" % name)
-        for a in re.findall(r"<a\b[^>]*>.*?</a>", html, re.S):
+                errors.append(f"{name}: <img> without alt text")
+        for a in re.findall(r"<a\b[^>]*>.*?</a>", html, re.DOTALL):
             if not re.sub(r"<[^>]+>|\s+", "", a):
-                errors.append("%s: <a> with empty text" % name)
-        dup = [i for i, n in Counter(re.findall(r'id="([^"]+)"', html)).items() if n > 1]
+                errors.append(f"{name}: <a> with empty text")
+        dup = [
+            i for i, n in Counter(re.findall(r'id="([^"]+)"', html)).items() if n > 1
+        ]
         if dup:
-            errors.append("%s: duplicate ids: %s" % (name, ", ".join(dup)))
+            errors.append("{}: duplicate ids: {}".format(name, ", ".join(dup)))
         ids = page_ids(path)
         for href in internal_links(html):
             checked_links += 1
@@ -111,19 +145,19 @@ def main():
             if target:
                 ref_path = path.parent / target
                 if not ref_path.exists():
-                    errors.append("%s: broken link %s" % (name, href))
+                    errors.append(f"{name}: broken link {href}")
                     continue
                 if anchor and anchor not in page_ids(ref_path):
-                    errors.append("%s: broken anchor %s (not in %s)" % (name, anchor, target))
+                    errors.append(f"{name}: broken anchor {anchor} (not in {target})")
             elif anchor and anchor not in ids:
-                errors.append("%s: missing anchor id=#%s" % (name, anchor))
+                errors.append(f"{name}: missing anchor id=#{anchor}")
 
     if errors:
-        print("SITE ERRORS (%d):" % len(errors))
+        print(f"SITE ERRORS ({len(errors)}):")
         for e in errors[:40]:
             print("  " + e)
         sys.exit(1)
-    print("OK: %d pages, %d internal links and anchors valid" % (len(PAGES), checked_links))
+    print(f"OK: {len(PAGES)} pages, {checked_links} internal links and anchors valid")
 
 
 if __name__ == "__main__":

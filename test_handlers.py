@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Офлайн-тест базовых команд основного бота (telegram_bot.py)."""
+
 import os
 import sys
 
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 import telegram_bot as tb
@@ -13,17 +14,19 @@ bot = tb.AutoConfigBot(tb.TELEGRAM_BOT_TOKEN)
 captured = []
 bot.bot.send_message = lambda chat_id, text, **kw: captured.append(text)
 bot.bot.reply_to = lambda m, text, **kw: captured.append(text)
-bot.bot.send_document = lambda chat_id, doc, **kw: captured.append("DOC: " + (kw.get('caption') or ''))
+bot.bot.send_document = lambda chat_id, doc, **kw: captured.append(
+    "DOC: " + (kw.get("caption") or "")
+)
 
 
 class Chat:
     id = 123456789
-    type = 'private'
+    type = "private"
 
 
 class GroupChat:
     id = -100123456789
-    type = 'group'
+    type = "group"
 
 
 class User:
@@ -41,9 +44,9 @@ class Message:
 
 def find_command_handler(command):
     for h in bot.bot.message_handlers:
-        cmds = h.get('filters', {}).get('commands')
+        cmds = h.get("filters", {}).get("commands")
         if cmds and command in cmds:
-            return h['function']
+            return h["function"]
     return None
 
 

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Офлайн-тест чата поддержки (автоответчик по ключевым словам)."""
+
 import os
 import sys
 
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 import telegram_bot as tb
 
-bot = tb.AutoConfigBot('111:AAAA')
+bot = tb.AutoConfigBot("111:AAAA")
 
 CASES = [
     ("как оплатить?", "оплата"),
@@ -35,7 +36,10 @@ for text, expected_topic in CASES:
     result = "OK " if good else "FAIL"
     if not good:
         ok = False
-    print(f"{result} {text!r} => {label}" + (" (no answer)" if answer is None and expected_topic is not None else ""))
+    print(
+        f"{result} {text!r} => {label}"
+        + (" (no answer)" if answer is None and expected_topic is not None else "")
+    )
 
 for text in ("аплодлаплод", "йцукенфывап"):
     # убеждаемся, что неизвестное возвращает None
@@ -59,11 +63,13 @@ router_cases = [
 ]
 for text, brand in router_cases:
     a = bot._support_auto_answer(text)
-    assert a and brand in a, f"для {text!r} ожидали ответ про {brand}, получили: {(a or '')[:80]!r}"
+    assert a and brand in a, (
+        f"для {text!r} ожидали ответ про {brand}, получили: {(a or '')[:80]!r}"
+    )
     print(f"OK router {text!r} => {brand}")
 
 # Каталог подбора роутеров доступен и содержит нужные категории
-assert set(("budget", "mid", "premium", "keenetic_family")).issubset(tb.ROUTER_CATEGORIES)
+assert {"budget", "mid", "premium", "keenetic_family"}.issubset(tb.ROUTER_CATEGORIES)
 for key, (title, _, models) in tb.ROUTER_CATEGORIES.items():
     assert title and models, f"категория {key} пустая"
     for m in models:
@@ -71,8 +77,10 @@ for key, (title, _, models) in tb.ROUTER_CATEGORIES.items():
 print("OK каталог роутеров: 4 категории и модели валидны")
 
 # Команда /router зарегистрирована
-bots = [h for h in bot.bot.message_handlers if h.get('filters', {}).get('commands')]
-assert any("router" in h['filters']['commands'] for h in bots), "/router не зарегистрирован"
+bots = [h for h in bot.bot.message_handlers if h.get("filters", {}).get("commands")]
+assert any("router" in h["filters"]["commands"] for h in bots), (
+    "/router не зарегистрирован"
+)
 print("OK /router зарегистрирован")
 
 # Callback router_* отдаёт осмысленный текст с моделями
@@ -84,13 +92,16 @@ class RCall:
     class From:
         id = 123456789
         username = "tester"
+
     from_user = From()
 
     class Msg:
         class Chat:
             id = 123456789
-            type = 'private'
+            type = "private"
+
         chat = Chat()
+
     message = Msg()
 
 
@@ -101,9 +112,14 @@ for cb in ("router_budget", "router_mid", "router_premium", "router_keenetic_fam
     call.data = cb
     bot.bot.answer_callback_query = lambda *a, **k: None
     for h in bot.bot.callback_query_handlers:
-        h['function'](call)
+        h["function"](call)
     joined = "\n".join(captured)
-    assert joined and ("Бюджетный" in joined or "Средний" in joined or "Мощный" in joined or "Keenetic" in joined), f"{cb} пустой"
+    assert joined and (
+        "Бюджетный" in joined
+        or "Средний" in joined
+        or "Мощный" in joined
+        or "Keenetic" in joined
+    ), f"{cb} пустой"
     assert "Кейнет" not in joined
     print(f"OK callback {cb} -> {len(captured)} сообщение(я)")
 

@@ -122,19 +122,13 @@ p{margin-top:0}
 .service-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
 .service-card{position:relative;display:flex;flex-direction:column;padding:30px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);text-decoration:none;overflow:hidden;box-shadow:var(--shadow-sm);transition:transform .25s,box-shadow .25s,border-color .25s}
 .service-card::before{content:"";position:absolute;inset:0;background:var(--grad);opacity:0;transition:opacity .25s}
-.service-card:hover{transform:translateY(-7px);box-shadow:var(--shadow-lg);border-color:transparent}
-.service-card:hover::before{opacity:1}
-.service-card:hover *{color:#fff!important;position:relative;z-index:1}
-.service-card:hover .card-icon{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35)}
 .service-card>*{position:relative;z-index:1}
 .card-icon{display:grid;place-items:center;width:52px;height:52px;margin-bottom:20px;border-radius:15px;background:linear-gradient(135deg,#eeebff,#f6f2ff);border:1px solid #e6e1ff;color:var(--violet);transition:background .25s,color .25s,border-color .25s}
 .card-index{order:-1;margin-bottom:14px;font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#5f6a7d}
 .service-card h3{margin-bottom:10px}
 .service-card p{color:var(--muted);font-size:.95rem;margin-bottom:0}
 .card-bottom{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:26px;padding-top:20px;border-top:1px solid var(--line);font-size:.92rem;transition:border-color .25s}
-.service-card:hover .card-bottom{border-color:rgba(255,255,255,.3)}
 .card-arrow{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#f1f0ff;color:var(--violet);transition:transform .25s,background .25s}
-.service-card:hover .card-arrow{background:rgba(255,255,255,.2);transform:rotate(45deg)}
 .service-card.featured{background:linear-gradient(160deg,#12141c,#1a1430);border-color:#262a3a;color:#fff}
 .service-card.featured .card-index{color:#8f97ad}
 .service-card.featured p{color:#aeb6c6}

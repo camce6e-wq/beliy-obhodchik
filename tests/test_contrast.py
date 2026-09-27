@@ -4,6 +4,7 @@
 Смысл: дизайн-токены лежат в :root (css/style.css) и в webapp/style.css.
 Если их поменяют «на глаз», тест ловит провал AA до деплоя.
 """
+
 import re
 import sys
 from pathlib import Path
@@ -35,14 +36,14 @@ def lum(hex_color):
     h = hex_color.lstrip("#")
     if len(h) == 3:
         h = "".join(c * 2 for c in h)
-    c = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
-    c = [x / 12.92 if x <= .03928 else ((x + .055) / 1.055) ** 2.4 for x in c]
-    return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]
+    c = [int(h[i : i + 2], 16) / 255 for i in (0, 2, 4)]
+    c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
 
 
 def ratio(a, b):
     hi, lo = max(lum(a), lum(b)), min(lum(a), lum(b))
-    return (hi + .05) / (lo + .05)
+    return (hi + 0.05) / (lo + 0.05)
 
 
 def main():
@@ -52,25 +53,25 @@ def main():
         if rel not in cache:
             path = ROOT / rel
             if not path.exists():
-                errors.append("%s: %s missing" % (label, rel))
+                errors.append(f"{label}: {rel} missing")
                 cache[rel] = {}
             else:
                 cache[rel] = tokens(path.read_text(encoding="utf-8"))
         t = cache[rel]
         if fg not in t or bg not in t:
-            errors.append("%s: token %s/%s not found in %s" % (label, fg, bg, rel))
+            errors.append(f"{label}: token {fg}/{bg} not found in {rel}")
             continue
         r = ratio(t[fg], t[bg])
         if r < need:
-            errors.append("%s: %.2f < %.1f (%s on %s)" % (label, r, need, t[fg], t[bg]))
+            errors.append(f"{label}: {r:.2f} < {need:.1f} ({t[fg]} on {t[bg]})")
         else:
-            print("OK  %-22s %.2f >= %.1f  (%s / %s)" % (label, r, need, t[fg], t[bg]))
+            print(f"OK  {label:<22} {r:.2f} >= {need:.1f}  ({t[fg]} / {t[bg]})")
     if errors:
-        print("CONTRAST ERRORS (%d):" % len(errors))
+        print(f"CONTRAST ERRORS ({len(errors)}):")
         for e in errors:
             print("  " + e)
         return 1
-    print("OK: %d contrast pairs pass WCAG AA" % len(PAIRS))
+    print(f"OK: {len(PAIRS)} contrast pairs pass WCAG AA")
     return 0
 
 

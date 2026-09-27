@@ -19,30 +19,30 @@
 Автоответы переиспользуют те же правила, что и основной бот (SUPPORT_RULES),
 поэтому бот и поддержка отвечают одинаково.
 """
+
+import logging
 import os
 import sys
 import time
-import logging
 
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 try:
     import telebot
     from telebot import types  # noqa: F401
 except ImportError:
     print("Установите библиотеку: pip install pyTelegramBotAPI")
-    exit(1)
+    sys.exit(1)
 
 # Общие правила автоответа (единый источник с основным ботом).
-from telegram_bot import AutoConfigBot  # noqa: E402
+from telegram_bot import AutoConfigBot
 
 SUPPORT_RULES = AutoConfigBot.SUPPORT_RULES
 SUPPORT_ANSWERS = AutoConfigBot.SUPPORT_ANSWERS
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -68,18 +68,30 @@ def _load_dotenv(path: str = ".env") -> None:
 
 _load_dotenv()
 
-SUPPORT_BOT_TOKEN = os.environ.get('SUPPORT_BOT_TOKEN', "")
+SUPPORT_BOT_TOKEN = os.environ.get("SUPPORT_BOT_TOKEN", "")
 # Владельцы поддержки: ADMIN_USER_IDS переиспользуется из .env основного бота.
-ADMIN_USER_IDS = [int(x) for x in os.environ.get('ADMIN_USER_IDS', '').split(',') if x.strip()]
-COMMAND_COOLDOWN = float(os.environ.get('COMMAND_COOLDOWN', '2'))
-MAIN_BOT_USERNAME = os.environ.get('MAIN_BOT_USERNAME', 'beliy_obhodchik_bot')
+ADMIN_USER_IDS = [
+    int(x) for x in os.environ.get("ADMIN_USER_IDS", "").split(",") if x.strip()
+]
+COMMAND_COOLDOWN = float(os.environ.get("COMMAND_COOLDOWN", "2"))
+MAIN_BOT_USERNAME = os.environ.get("MAIN_BOT_USERNAME", "beliy_obhodchik_bot")
 
 
 def auto_answer(text: str):
     """Тот же автоответчик, что и в основном боте: None, если вопрос не понят."""
     tl = (text or "").lower()
     t = tl
-    if any(name in t for name in ("giga", "ultra", "hopper", "omni", "keenetic omni", "keenetic giga")):
+    if any(
+        name in t
+        for name in (
+            "giga",
+            "ultra",
+            "hopper",
+            "omni",
+            "keenetic omni",
+            "keenetic giga",
+        )
+    ):
         return (
             "🎛 *Keenetic — отличный выбор!*\n"
             "Ваша модель Keenetic полностью поддержана: основной бот подготовит "
@@ -119,10 +131,10 @@ class SupportBot:
     # ===== Защита =====
 
     def _is_private(self, chat_type) -> bool:
-        return chat_type == 'private'
+        return chat_type == "private"
 
     def _guard_message(self, message) -> bool:
-        chat_type = getattr(message.chat, 'type', None)
+        chat_type = getattr(message.chat, "type", None)
         if not self._is_private(chat_type):
             try:
                 self.bot.send_message(
@@ -153,7 +165,9 @@ class SupportBot:
         if now - self._spam_notified.get(user_id, 0) > 15:
             self._spam_notified[user_id] = now
             try:
-                self.bot.send_message(chat_id, "⏳ Не так быстро. Подождите пару секунд и повторите.")
+                self.bot.send_message(
+                    chat_id, "⏳ Не так быстро. Подождите пару секунд и повторите."
+                )
             except Exception:
                 pass
 
@@ -161,7 +175,7 @@ class SupportBot:
 
     def _relay_admin_reply(self, message) -> bool:
         """Если владелец ответил на пересланное сообщение — доставляем ответ юзеру."""
-        reply = getattr(message, 'reply_to_message', None)
+        reply = getattr(message, "reply_to_message", None)
         if not reply or message.from_user.id not in self.admin_ids:
             return False
         ticket = self.forwards.get(reply.message_id)
@@ -169,12 +183,18 @@ class SupportBot:
             return False
         user_id, chat_id = ticket
         try:
-            self.bot.send_message(chat_id, f"📩 *Ответ поддержки:*\n{message.text or ''}")
-            self.bot.send_message(message.chat.id, f"✉️ Ответ отправлен пользователю {user_id}.")
+            self.bot.send_message(
+                chat_id, f"📩 *Ответ поддержки:*\n{message.text or ''}"
+            )
+            self.bot.send_message(
+                message.chat.id, f"✉️ Ответ отправлен пользователю {user_id}."
+            )
             return True
         except Exception as e:
             logger.error("Не удалось доставить ответ пользователю %s: %s", user_id, e)
-            self.bot.send_message(message.chat.id, f"❌ Не удалось доставить ответ (id {user_id}).")
+            self.bot.send_message(
+                message.chat.id, f"❌ Не удалось доставить ответ (id {user_id})."
+            )
             return True
 
     def _forward_to_admins(self, message) -> bool:
@@ -192,13 +212,15 @@ class SupportBot:
                 self.forwards[fwd.message_id] = (message.from_user.id, message.chat.id)
                 forwarded = True
             except Exception as e:
-                logger.error("Не удалось переслать вопрос владельцу %s: %s", admin_id, e)
+                logger.error(
+                    "Не удалось переслать вопрос владельцу %s: %s", admin_id, e
+                )
         return forwarded
 
     # ===== Хендлеры =====
 
     def register_handlers(self):
-        @self.bot.message_handler(commands=['start', 'help', 'menu'])
+        @self.bot.message_handler(commands=["start", "help", "menu"])
         def welcome(message):
             if not self._guard_message(message):
                 return
@@ -216,11 +238,21 @@ class SupportBot:
                 "• «Перестал работать Ютуб»\n"
                 "• «Где взять IP сервера?»\n\n"
                 f"Покупка и настройка заказа — в основном боте: @{MAIN_BOT_USERNAME}",
-                parse_mode='Markdown',
+                parse_mode="Markdown",
             )
 
-        @self.bot.message_handler(func=lambda m: True,
-                                  content_types=['text', 'photo', 'document', 'video', 'audio', 'voice', 'sticker'])
+        @self.bot.message_handler(
+            func=lambda m: True,
+            content_types=[
+                "text",
+                "photo",
+                "document",
+                "video",
+                "audio",
+                "voice",
+                "sticker",
+            ],
+        )
         def handle_message(message):
             if not self._guard_message(message):
                 return
@@ -238,7 +270,7 @@ class SupportBot:
             text = message.text or ""
             answer = auto_answer(text)
             if answer:
-                self.bot.send_message(message.chat.id, answer, parse_mode='Markdown')
+                self.bot.send_message(message.chat.id, answer, parse_mode="Markdown")
                 return
 
             # Непонятный вопрос -> человеку
@@ -271,7 +303,10 @@ class SupportBot:
                 logger.info("Бот поддержки остановлен пользователем.")
                 return
             except Exception as e:
-                logger.error("Поллинг поддержки завершился с ошибкой, перезапуск через 10 сек: %s", e)
+                logger.error(
+                    "Поллинг поддержки завершился с ошибкой, перезапуск через 10 сек: %s",
+                    e,
+                )
                 time.sleep(10)
 
 
@@ -292,5 +327,5 @@ def main():
     bot.start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

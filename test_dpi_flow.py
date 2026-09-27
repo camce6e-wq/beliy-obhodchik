@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Офлайн-тест услуги «Без сервера» (DPI/Zapret):
-  * крипто-путь: /dpi -> счёт на DPI_RUB_PRICE -> оплата -> доставка setup_nfqws.sh
-  * звёзды-путь: /dpi -> send_invoice на DPI_STARS_PRICE -> successful_payment -> доставка
-  * неизвестная команда -> подсказка с главным меню (не молчим)"""
+* крипто-путь: /dpi -> счёт на DPI_RUB_PRICE -> оплата -> доставка setup_nfqws.sh
+* звёзды-путь: /dpi -> send_invoice на DPI_STARS_PRICE -> successful_payment -> доставка
+* неизвестная команда -> подсказка с главным меню (не молчим)"""
+
 import os
+import sqlite3
 import sys
 import tempfile
-import sqlite3
 from types import SimpleNamespace
 
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import telegram_bot as tb
 
@@ -66,7 +67,9 @@ def fake_send_document(chat_id, doc, **kw):
     return SimpleNamespace(message_id=1)
 
 
-def fake_send_invoice(chat_id, title, description, payload, provider_token, currency, prices, **kw):
+def fake_send_invoice(
+    chat_id, title, description, payload, provider_token, currency, prices, **kw
+):
     sent_invoices.append({"payload": payload, "prices": prices, "title": title})
 
 
@@ -78,7 +81,7 @@ bot.bot.send_invoice = fake_send_invoice
 def msg(text, user_id):
     return SimpleNamespace(
         from_user=SimpleNamespace(id=user_id),
-        chat=SimpleNamespace(id=user_id + 1000, type='private'),
+        chat=SimpleNamespace(id=user_id + 1000, type="private"),
         message_id=1,
         text=text,
     )
@@ -89,7 +92,9 @@ def call(data, user_id):
         id="cbq_1",
         data=data,
         from_user=SimpleNamespace(id=user_id),
-        message=SimpleNamespace(chat=SimpleNamespace(id=user_id + 1000, type='private')),
+        message=SimpleNamespace(
+            chat=SimpleNamespace(id=user_id + 1000, type="private")
+        ),
     )
 
 
@@ -100,7 +105,9 @@ def by_name(name):
     raise AssertionError(f"хендлер {name} не найден")
 
 
-cb_handler = [h for h in bot.bot.callback_query_handlers if 'function' in h][-1]['function']
+cb_handler = [h for h in bot.bot.callback_query_handlers if "function" in h][-1][
+    "function"
+]
 
 
 def start_dpi_order(user_id):
@@ -115,28 +122,47 @@ def start_dpi_order(user_id):
     assert row, "платёж не записан"
     pid, amount, status = row
     assert pid.startswith("dpi_"), f"payment_id должен иметь префикс dpi_, а был {pid}"
-    assert amount == tb.DPI_RUB_PRICE == 1000, f"сумма DPI должна быть 1000, а была {amount}"
+    assert amount == tb.DPI_RUB_PRICE == 1000, (
+        f"сумма DPI должна быть 1000, а была {amount}"
+    )
     assert status == "pending"
     return pid
 
 
 # ===== Часть 1. Крипто-путь =====
 CR = 5111
-sent_clear = lambda: (sent_messages.clear(), sent_markups.clear(), sent_invoices.clear(), sent_docs.clear(), bot.last_cmd.clear())
+sent_clear = lambda: (
+    sent_messages.clear(),
+    sent_markups.clear(),
+    sent_invoices.clear(),
+    sent_docs.clear(),
+    bot.last_cmd.clear(),
+)
 sent_clear()
 pid = start_dpi_order(CR)
 text = " ".join(sent_messages)
-assert "1000" in text and "500" in text, f"в тексте /dpi должны быть цены 1000/500, а было: {text[:200]}"
+assert "1000" in text and "500" in text, (
+    f"в тексте /dpi должны быть цены 1000/500, а было: {text[:200]}"
+)
 print(f"OK 1/6: /dpi -> платёж {pid} на 1000 ₽ (pending)")
 
 sent_clear()
 cb_handler(call("make_dpi_payment", CR))
 assert len(fake.created) == 1, "счёт не создан"
 inv = fake.created[0]
-assert inv["payload"] == pid and inv["amount"] == 1000, "счёт должен быть на payload=payment_id и 1000 ₽"
-assert any("1000" in t for t in sent_messages), "сообщение о счёте должно содержать 1000 ₽"
+assert inv["payload"] == pid and inv["amount"] == 1000, (
+    "счёт должен быть на payload=payment_id и 1000 ₽"
+)
+assert any("1000" in t for t in sent_messages), (
+    "сообщение о счёте должно содержать 1000 ₽"
+)
 assert any(
-    m and any(b.to_dict().get("url", "").startswith("https://t.me/CryptoBot") for row2 in m.keyboard for b in row2)
+    m
+    and any(
+        b.to_dict().get("url", "").startswith("https://t.me/CryptoBot")
+        for row2 in m.keyboard
+        for b in row2
+    )
     for m in sent_markups
 ), "нет кнопки оплаты с pay_url"
 print("OK 2/6: make_dpi_payment -> счёт на 1000 ₽, pending + БД заполнены")
@@ -145,7 +171,9 @@ sent_clear()
 inv["status"] = "paid"
 fake.paid = [inv]
 bot._process_paid_invoices(fake.get_paid_invoices())
-assert any("setup_nfqws.sh" in c for c in sent_docs), "после крипто-оплаты документ setup_nfqws.sh не отправлен"
+assert any("setup_nfqws.sh" in c for c in sent_docs), (
+    "после крипто-оплаты документ setup_nfqws.sh не отправлен"
+)
 assert any("по шагам" in t for t in sent_messages), "нет инструкции по шагам"
 con = sqlite3.connect(DB)
 st = con.execute("SELECT status FROM payments WHERE payment_id=?", (pid,)).fetchone()[0]
@@ -163,21 +191,25 @@ assert len(sent_invoices) == 1, "send_invoice не вызван"
 si = sent_invoices[0]
 assert si["payload"] == pid2, "payload инвойса должен совпадать с payment_id"
 assert si["prices"][0].amount == tb.DPI_STARS_PRICE == 500, "цена звёзд должна быть 500"
-assert pid2 not in bot.pending_payments or True  # звёзды идут без pending crypto
+assert True  # звёзды идут без pending crypto
 print("OK 4/6: pay_dpi_stars -> send_invoice 500 ⭐ с payload=payment_id")
 
 sent_clear()
 sp = SimpleNamespace(
     from_user=SimpleNamespace(id=ST),
-    chat=SimpleNamespace(id=ST + 1000, type='private'),
+    chat=SimpleNamespace(id=ST + 1000, type="private"),
     message_id=2,
     successful_payment=SimpleNamespace(invoice_payload=pid2, total_amount=500),
 )
 by_name("handle_successful_payment")(sp)
-assert any("setup_nfqws.sh" in c for c in sent_docs), "после звёзд документ setup_nfqws.sh не отправлен"
+assert any("setup_nfqws.sh" in c for c in sent_docs), (
+    "после звёзд документ setup_nfqws.sh не отправлен"
+)
 assert any("по шагам" in t for t in sent_messages), "нет инструкции по шагам"
 con = sqlite3.connect(DB)
-st = con.execute("SELECT status FROM payments WHERE payment_id=?", (pid2,)).fetchone()[0]
+st = con.execute("SELECT status FROM payments WHERE payment_id=?", (pid2,)).fetchone()[
+    0
+]
 con.close()
 assert st == "paid", f"звёздный платёж должен быть paid, а был {st}"
 print("OK 5/6: оплата звёздами -> confirm_payment + доставка скрипта, статус paid")
@@ -186,9 +218,16 @@ print("OK 5/6: оплата звёздами -> confirm_payment + доставк
 UK = 7333
 sent_clear()
 by_name("handle_unknown_command")(msg("/definitely_not_a_command", UK))
-assert any("Не знаю команду" in t for t in sent_messages), "нет подсказки про неизвестную команду"
+assert any("Не знаю команду" in t for t in sent_messages), (
+    "нет подсказки про неизвестную команду"
+)
 has_menu = any(
-    m and any(b.to_dict().get("callback_data") in ("cmd_menu", "cmd_buy", "cmd_dpi") for row2 in m.keyboard for b in row2)
+    m
+    and any(
+        b.to_dict().get("callback_data") in ("cmd_menu", "cmd_buy", "cmd_dpi")
+        for row2 in m.keyboard
+        for b in row2
+    )
     for m in sent_markups
 )
 assert has_menu, "у неизвестной команды должно быть главное меню"

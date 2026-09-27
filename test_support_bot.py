@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Офлайн-тест отдельного бота поддержки (support_bot.py)."""
+
 import os
 import sys
 from types import SimpleNamespace
 
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 import support_bot as sb
@@ -12,11 +13,12 @@ import support_bot as sb
 ADMIN = 6002841224
 USER = 555111222
 
-bot = sb.SupportBot('111:AAAA', admin_ids=[ADMIN])
+bot = sb.SupportBot("111:AAAA", admin_ids=[ADMIN])
 
 
-def make_message(text, user_id=USER, msg_id=1000, chat_id=999000,
-                 chat_type='private', reply_to=None):
+def make_message(
+    text, user_id=USER, msg_id=1000, chat_id=999000, chat_type="private", reply_to=None
+):
     msg = SimpleNamespace()
     msg.text = text
     msg.message_id = msg_id
@@ -30,13 +32,16 @@ captured = []
 bot.bot.send_message = lambda chat_id, text, **kw: captured.append(text)
 bot.bot.send_document = lambda *a, **k: captured.append("DOC")
 bot.bot.forward_message = lambda admin_id, from_chat_id, message_id: SimpleNamespace(
-    message_id=100 + message_id)
+    message_id=100 + message_id
+)
 
 
 def call_by_filter(attr, predicate):
     for h in getattr(bot.bot, attr):
-        if predicate(h.get('filters', {})):
-            h['function'](make_message(""), )
+        if predicate(h.get("filters", {})):
+            h["function"](
+                make_message(""),
+            )
             return
     raise AssertionError(f"не найден хендлер по {attr}")
 
@@ -44,17 +49,19 @@ def call_by_filter(attr, predicate):
 def call_command(text, **kw):
     msg = make_message(text, **kw)
     for h in bot.bot.message_handlers:
-        cmds = h.get('filters', {}).get('commands')
-        if cmds and msg.text.strip().lstrip('/').split()[0] in cmds:
-            h['function'](msg)
+        cmds = h.get("filters", {}).get("commands")
+        if cmds and msg.text.strip().lstrip("/").split()[0] in cmds:
+            h["function"](msg)
             return msg
     raise AssertionError(f"команда не найдена: {text}")
 
 
 def call_text(msg):
     for h in bot.bot.message_handlers:
-        if not h.get('filters', {}).get('commands') and ('func' in h.get('filters', {})):
-            h['function'](msg)
+        if not h.get("filters", {}).get("commands") and (
+            "func" in h.get("filters", {})
+        ):
+            h["function"](msg)
             return
     raise AssertionError("text-хендлер не найден")
 
@@ -66,8 +73,12 @@ def reset():
 
 
 # 1) Автоответчик повторяет правила основного бота
-CASES = [("как оплатить?", "Оплата"), ("Ютуб не работает", "Не работает"),
-         ("хочу человека", "Передаю ваш вопрос"), ("лдлваолдыоа", None)]
+CASES = [
+    ("как оплатить?", "Оплата"),
+    ("Ютуб не работает", "Не работает"),
+    ("хочу человека", "Передаю ваш вопрос"),
+    ("лдлваолдыоа", None),
+]
 for text, expect in CASES:
     a = sb.auto_answer(text)
     good = (expect in (a or "")) if expect else (a is None)
@@ -99,8 +110,13 @@ print("OK сложный вопрос переслан владельцу, юз�
 captured.clear()
 bot.last_cmd.clear()
 fwd_id = next(iter(bot.forwards))
-reply_msg = make_message("Да, поможем. Напишите IP.", user_id=ADMIN, msg_id=9001,
-                         chat_id=ADMIN, reply_to=SimpleNamespace(message_id=fwd_id))
+reply_msg = make_message(
+    "Да, поможем. Напишите IP.",
+    user_id=ADMIN,
+    msg_id=9001,
+    chat_id=ADMIN,
+    reply_to=SimpleNamespace(message_id=fwd_id),
+)
 call_text(reply_msg)
 join = "\n".join(captured)
 assert "Ответ поддержки" in join, captured
@@ -115,7 +131,7 @@ print("OK сообщение владельца без reply не обрабат
 
 # 7) Не личный чат -> отказ
 reset()
-call_text(make_message("как оплатить?", chat_type='group'))
+call_text(make_message("как оплатить?", chat_type="group"))
 join = "\n".join(captured)
 assert "только в личных" in join, captured
 print("OK групповой чат отклонён")
