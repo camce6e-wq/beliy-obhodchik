@@ -9,7 +9,8 @@ while not (_root / "index.html").exists() and _root != _root.parent:
     _root = _root.parent
 ROOT = _root
 PAGES = ["index.html", "service-full.html", "service-dpi.html",
-         "service-claude.html", "service-transfer.html"]
+         "service-claude.html", "service-transfer.html",
+         "webapp/index.html"]
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input",
         "link", "meta", "param", "source", "track", "wbr"}
@@ -96,14 +97,9 @@ def main():
             checked_links += 1
             target, _, anchor = href.partition("#")
             if target:
-                if target.startswith("img/") or target.startswith("css/"):
-                    asset = ROOT / target
-                    if not asset.exists():
-                        errors.append("%s: broken asset link %s" % (name, href))
-                    continue
-                ref_path = ROOT / target
+                ref_path = path.parent / target
                 if not ref_path.exists():
-                    errors.append("%s: broken page link %s" % (name, href))
+                    errors.append("%s: broken link %s" % (name, href))
                     continue
                 if anchor and anchor not in page_ids(ref_path):
                     errors.append("%s: broken anchor %s (not in %s)" % (name, anchor, target))
