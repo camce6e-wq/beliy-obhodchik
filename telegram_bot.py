@@ -1007,6 +1007,52 @@ class AutoConfigBot:
         # вместо команд и их описаний используем inline-кнопки на русском
         # (см. _main_menu_inline_keyboard в приветствии).
         
+        def _payload_param(message) -> str:
+            """Параметр deep-link ссылки: t.me/bot?start=vps -> '/start vps' -> 'vps'."""
+            try:
+                parts = (message.text or "").split()
+            except Exception:
+                return ""
+            return parts[1].strip().lower() if len(parts) > 1 else ""
+
+        @self.bot.message_handler(commands=['start'], func=lambda m: bool(_payload_param(m)))
+        def start_deep_link(message):
+            """Вход из Mini App и рекламных ссылок: сразу открываем нужную услугу.
+            Регистрируется раньше обычного /start, поэтому при payload цепочка
+            останавливается здесь, а при пустом payload срабатывает send_welcome."""
+            if not self._guard_message(message):
+                return
+            param = _payload_param(message)
+            if param in ("vps", "buy", "full", "package"):
+                start_purchase(message)
+                return
+            if param in ("dpi", "nfqws", "zapret"):
+                make_dpi_order(message)
+                return
+            if param in ("claude", "transfer"):
+                title = "Claude Code" if param == "claude" else "Перенос настроек"
+                kb = types.InlineKeyboardMarkup()
+                kb.add(types.InlineKeyboardButton("💬 Написать в поддержку", callback_data="cmd_support"))
+                kb.add(types.InlineKeyboardButton("⬇️ В главное меню", callback_data="cmd_menu"))
+                self.bot.send_message(
+                    message.chat.id,
+                    f"*{title}* — услуга «по запросу».\n\n"
+                    "Стоимость зависит от задачи и устройств, поэтому сначала коротко уточним:\n"
+                    "• что нужно настроить или перенести\n"
+                    "• какие устройства и роутеры участвуют\n\n"
+                    "Напишите пару слов в поддержку — ответим и предложим вариант.",
+                    parse_mode="Markdown",
+                    reply_markup=kb,
+                )
+                return
+            if param == "app":
+                open_app(message)
+                return
+            if param == "myorders":
+                show_orders(message)
+                return
+            send_welcome(message)
+
         @self.bot.message_handler(commands=['start', 'help'])
         def send_welcome(message):
             if not self._guard_message(message):

@@ -205,4 +205,34 @@ assert "Статус системы" in " ".join(s["text"] for s in sent)
 assert any(s["markup"] for s in sent), "/status должен давать путь назад (меню)"
 print("OK 10/10: /status -> состояние системы с меню")
 
+# 11) Deep-link из Mini App: /start <payload> открывает нужный флоу
+deep = None
+for h in bot.bot.message_handlers:
+    if h["function"].__name__ == "start_deep_link":
+        deep = h["function"]
+        break
+assert deep, "хендлер deep-link (/start <payload>) не найден"
+
+sent.clear()
+bot.last_cmd.clear()
+deep(msg("/start vps"))
+text = " ".join(s["text"] for s in sent)
+assert "1500" in text and "750" in text, "deep-link vps должен открывать покупку с ценами"
+print("OK 11/13: /start vps -> покупка полного пакета")
+
+sent.clear()
+bot.last_cmd.clear()
+deep(msg("/start dpi"))
+text = " ".join(s["text"] for s in sent)
+assert "1000" in text and "500" in text, "deep-link dpi должен открывать заказ обхода DPI"
+print("OK 12/13: /start dpi -> заказ обхода DPI")
+
+sent.clear()
+bot.last_cmd.clear()
+deep(msg("/start claude"))
+text = " ".join(s["text"] for s in sent)
+assert "по запросу" in text.lower() or "запросу" in text.lower(), "deep-link claude -> сообщение 'по запросу'"
+assert any(s["markup"] for s in sent), "должна быть кнопка поддержки"
+print("OK 13/13: /start claude -> запрос в поддержку")
+
 print("\nВСЕ ТЕСТЫ ПРОЙДЕНЫ")
