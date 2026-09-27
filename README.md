@@ -175,8 +175,9 @@ python tests/test_contrast.py      # цветовой контраст (a11y)
 ```
 
 CI (`.github/workflows/tests.yml`, запускается на каждый push) дополнительно делает:
-`ruff check --select E9,F63,F7,F82`, `py_compile` всех модулей и `sh -n`/`bash -n`
-скриптов установки.
+`ruff check --select E9,F`, `py_compile` всех модулей и `sh -n`/`bash -n`
+скриптов установки. Отдельный `smoke.yml` каждые 6 часов проверяет живой сайт
+(GitHub Pages) и — при наличии секрета `BOT_TOKEN` — токен бота через `getMe`.
 
 ### Деплой
 
