@@ -117,7 +117,7 @@ assert bot.payment_system.get_user_orders(B) == [], "у чужака не дол
 assert len(bot.sent_docs) == 0, "чужой пользователь не должен получить конфиг"
 assert any("Здравствуйте" in m for m in bot.sent_msgs), f"нет welcome: {bot.sent_msgs[:200]}"
 assert not any(
-    m and any(b.to_dict().get("callback_data") in ("install_ssh", "install_self")
+    m and hasattr(m, "keyboard") and any(b.to_dict().get("callback_data") in ("install_ssh", "install_self")
               for row2 in m.keyboard for b in row2)
     for m in bot.sent_markups
 ), "чужой не должен видеть кнопки установки чужого заказа"

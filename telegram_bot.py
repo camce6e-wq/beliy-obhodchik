@@ -786,7 +786,7 @@ class AutoConfigBot:
         ),
         "human": (
             "👨‍💻 *Передаю ваш вопрос человеку.*\n"
-            "Сейчас наберёт поддержка @beliy_obhodchik_support_bot. "
+            "Сейчас наберёт поддержка @beliy\\_obhodchik\\_support\\_bot. "
             "Опишите, пожалуйста, что случилось, и приложите скриншот, если есть."
         ),
         "hello": (
@@ -884,6 +884,11 @@ class AutoConfigBot:
             chat_id,
             welcome_text,
             parse_mode='Markdown',
+            reply_markup=types.ReplyKeyboardRemove(),
+        )
+        self.bot.send_message(
+            chat_id,
+            "🧩 Выберите действие:",
             reply_markup=self._main_menu_inline_keyboard(),
         )
 
@@ -1831,7 +1836,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
 
 *Я все равно боюсь/не понимаю, как платить. Поможете?*
 Да! Пошаговая простая инструкция → /vps.
-Если застряли в любой момент — пишите поддержке: @beliy_obhodchik_support_bot
+Если застряли в любой момент — пишите поддержке: @beliy\\_obhodchik\\_support\\_bot
 
 *Что, если мой интернет-провайдер заблокирует связь с этим сервером?*
 Мы используем маскировку Reality — со стороны провайдер видит обычный
@@ -1868,7 +1873,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
 
 Подробная инструкция: см. [INSTRUCTIONS.md](https://github.com/camce6e-wq/beliy-obhodchik/blob/main/INSTRUCTIONS.md)
 
-Нужна помощь? Напишите: /support (вопрос уйдёт человеку) или поддержке @beliy_obhodchik_support_bot
+Нужна помощь? Напишите: /support (вопрос уйдёт человеку) или поддержке @beliy\\_obhodchik\\_support\\_bot
             """.format(
                 stars=STARS_PRICE,
                 devices="\n".join(f"• {d}" for d in SUPPORTED_DEVICES),
@@ -2287,7 +2292,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
 
 💡 *Помощь:*
 • Инструкция в архиве
-• Поддержка: @beliy_obhodchik_support_bot
+• Поддержка: @beliy\\_obhodchik\\_support\\_bot
 • Вопросы: /faq
 
 🔄 *Автообновления:*

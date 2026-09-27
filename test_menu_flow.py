@@ -14,10 +14,14 @@ tb.ADMIN_USER_IDS = []
 bot = tb.AutoConfigBot(tb.TELEGRAM_BOT_TOKEN)
 
 sent = []
+md_texts = []
 
 
 def fake_send_message(chat_id, text, **kw):
-    sent.append({"chat_id": chat_id, "text": text, "markup": kw.get("reply_markup")})
+    sent.append({"chat_id": chat_id, "text": text, "markup": kw.get("reply_markup"),
+                 "parse_mode": kw.get("parse_mode")})
+    if kw.get("parse_mode") == "Markdown":
+        md_texts.append(text)
     return SimpleNamespace(message_id=1)
 
 
@@ -74,14 +78,17 @@ for h in bot.bot.message_handlers:
         break
 assert start_handler, "хендлер /start не найден"
 start_handler(msg("/start"))
-assert len(sent) == 1, "должно быть одно приветствие"
+assert len(sent) == 2, "приветствие = сообщение с ReplyKeyboardRemove + сообщение меню"
 m = sent[0]
 assert "БелыйОбходчик" in m["text"]
 assert "/buy" not in m["text"], "в приветствии не должно быть ссылок на команды"
-kb = m["markup"]
+kb0 = m["markup"]
+assert kb0 is not None and isinstance(kb0, tb.types.ReplyKeyboardRemove), \
+    "первое сообщение должно снимать нижнюю reply-клавиатуру"
+kb = sent[1]["markup"]
 assert kb is not None, "приветствие должно быть с inline-кнопками"
 assert kb.to_dict().get("inline_keyboard"), "это должны быть inline-кнопки"
-print(f"OK 1/5: /start -> приветствие + {sum(len(r) for r in kb.to_dict()['inline_keyboard'])} inline-кнопок")
+print(f"OK 1/5: /start -> приветствие+remove + {sum(len(r) for r in kb.to_dict()['inline_keyboard'])} inline-кнопок")
 
 # 2) cmd_* диспетчер: «Купить настройку» -> инструкция с ценами -> ввод IP -> кнопки оплаты
 sent.clear()
@@ -112,16 +119,18 @@ print("OK 3/6: ввод IP -> кнопки оплаты")
 sent.clear()
 bot.last_cmd.clear()
 cb_handler(call("cancel_purchase"))
-assert len(sent) == 1, "после отмены должно быть одно сообщение"
+assert len(sent) == 2, "после отмены — приветствие + меню"
 assert "БелыйОбходчик" in sent[0]["text"], "после отмены показывается приветствие"
 assert "Отменён" not in sent[0]["text"], "не должно быть текста про отмену"
+assert sent[1]["markup"] and sent[1]["markup"].to_dict().get("inline_keyboard")
 print("OK 4/6: отмена -> приветствие")
 
 # 5) cmd_menu -> приветствие (кнопка «В главное меню» в /router)
 sent.clear()
 bot.last_cmd.clear()
 cb_handler(call("cmd_menu"))
-assert len(sent) == 1 and "БелыйОбходчик" in sent[0]["text"]
+assert len(sent) == 2 and "БелыйОбходчик" in sent[0]["text"]
+assert sent[1]["markup"] and sent[1]["markup"].to_dict().get("inline_keyboard")
 print("OK 5/6: cmd_menu -> приветствие")
 
 # 6) Все кнопки меню ведут на реальные обработчики (не тупики)
@@ -252,5 +261,62 @@ for cmd, min_len, label in (("guide", 500, "инструкция"), ("faq", 500,
     assert len(body) >= min_len, f"/{cmd}: ответ слишком короткий ({len(body)} симв.) — ловит catch-all"
     assert any(s["markup"] for s in sent), f"/{cmd} должен давать главное меню"
     print(f"OK 14/14: /{cmd} -> {label} ({len(body)} симв. + меню)")
+
+# 15) Markdown-парity: Telegram отвечает 400 «can't parse entities», если
+# entity (*, _, [, `) не закрыты. Так ломались /faq и /guide: 3 подчёркивания
+# в @beliy_obhodchik_support_bot открывали незакрытый italic.
+def md_balance(text):
+    i, n = 0, len(text)
+    bold = ital = 0
+    code = False
+    link_open = False
+    while i < n:
+        c = text[i]
+        if c == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if code:
+            if c == "`":
+                code = False
+            i += 1
+            continue
+        if c == "`":
+            code = True
+        elif c == "*":
+            bold ^= 1
+        elif c == "_":
+            ital ^= 1
+        elif c == "[":
+            if link_open:
+                return f"вложенная [ в {i}"
+            link_open = True
+        elif c == "]":
+            if not link_open:
+                return f"лишняя ] в {i}"
+            if not text.startswith("(", i + 1):
+                return f"] без (url) в {i}"
+            j = text.find(")", i + 1)
+            if j < 0:
+                return f"незакрытый (url) в {i}"
+            link_open = False
+            i = j + 1
+            continue
+        i += 1
+    if code:
+        return "незакрытая `"
+    if bold:
+        return "незакрытая *"
+    if ital:
+        return "незакрытая _"
+    if link_open:
+        return "незакрытая ["
+    return None
+
+bad = [(t, md_balance(t)) for t in md_texts if md_balance(t)]
+assert not bad, f"битый Markdown: {bad[0][1]} :: {bad[0][0][:120]!r}"
+for t in tb.AutoConfigBot.SUPPORT_ANSWERS.values():
+    r = md_balance(t)
+    assert r is None, f"SUPPORT_ANSWERS: {r} :: {t[:80]!r}"
+print(f"OK 15/15: markdown-parity {len(md_texts)} сообщений + SUPPORT_ANSWERS — entity закрыты")
 
 print("\nВСЕ ТЕСТЫ ПРОЙДЕНЫ")
