@@ -1749,7 +1749,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
                 sni = order['sni_hostname'] or '—'
                 
                 response += f"""
-{status_emoji} *Заказ {order['order_id'][:8]}...*
+{status_emoji} *Заказ {self._md_escape(order['order_id'][:8])}...*
 • Сервер: {server_ip}
 • SNI: `{sni}`
 • Статус оплаты: {order['payment_status']}
