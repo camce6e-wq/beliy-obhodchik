@@ -23,6 +23,11 @@ jobs:
           pip install -U pip
           pip install pyTelegramBotAPI requests cryptography
 
+      - name: Lint (fatal errors only)
+        run: |
+          pip install ruff
+          ruff check --select E9,F63,F7,F82 .
+
       - name: Check shell script syntax
         run: |
           # setup_nfqws.sh уезжает на роутеры покупателей и имеет shebang /bin/sh,
@@ -35,11 +40,11 @@ jobs:
       - name: Compile all modules
         run: |
           python -m py_compile telegram_bot.py support_bot.py keenetic_config_generator.py sni_manager.py
-          python -m py_compile test_crypto_payment.py test_dpi_flow.py test_handlers.py test_menu_flow.py test_stars_payment.py test_support.py test_support_bot.py test_security_and_p2.py test_defense_paths.py test_config_generator.py test_landing_html.py tests/test_site_pages.py
+          python -m py_compile test_crypto_payment.py test_dpi_flow.py test_handlers.py test_menu_flow.py test_stars_payment.py test_support.py test_support_bot.py test_security_and_p2.py test_defense_paths.py test_config_generator.py test_landing_html.py tests/test_site_pages.py tests/test_contrast.py
 
       - name: Run tests individually
         run: |
-          for t in test_menu_flow.py test_crypto_payment.py test_stars_payment.py test_support.py test_handlers.py test_dpi_flow.py test_support_bot.py test_security_and_p2.py test_defense_paths.py test_config_generator.py test_landing_html.py tests/test_site_pages.py; do
+          for t in test_menu_flow.py test_crypto_payment.py test_stars_payment.py test_support.py test_handlers.py test_dpi_flow.py test_support_bot.py test_security_and_p2.py test_defense_paths.py test_config_generator.py test_landing_html.py tests/test_site_pages.py tests/test_contrast.py; do
             echo "=== $t ==="
             if out=$(python -u "$t" 2>&1); then
               echo "PASS $t"
