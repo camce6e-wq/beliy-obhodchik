@@ -20,6 +20,9 @@ body {
 }
 a { color: var(--violet); text-decoration: none; }
 
+.skip-link { position: absolute; left: 12px; top: -60px; z-index: 10; padding: 10px 14px; background: #fff; color: #0d1017; border-radius: 0 0 10px 10px; font-weight: 700; }
+.skip-link:focus { top: 0; }
+
 .top { padding: 14px 0 6px; }
 .brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; font-size: 1rem; color: var(--ink); }
 .brand span { color: #8f7fff; }
