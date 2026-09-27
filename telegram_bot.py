@@ -864,6 +864,21 @@ class AutoConfigBot:
         )
         return kb
 
+    def _show_update_orders(self, chat_id: int, active: list, offset: int):
+        """Меню выбора активного заказа для обновления. По 6 за раз,
+        при большем количестве добавляем кнопку «Показать ещё» (update_more_<offset>)."""
+        if not active:
+            self._show_welcome(chat_id)
+            return
+        page = active[offset:offset + 6]
+        markup = types.InlineKeyboardMarkup()
+        for order in page:
+            btn_text = f"📦 {order['order_id'][:8]}... ({order['server_ip']})"
+            markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"update_{order['order_id']}"))
+        if offset + len(page) < len(active):
+            markup.add(types.InlineKeyboardButton("▶️ Показать ещё", callback_data=f"update_more_{offset + len(page)}"))
+        self.bot.send_message(chat_id, "Выберите заказ для обновления:", reply_markup=markup)
+
     def _show_welcome(self, chat_id: int):
         """Приветственное сообщение с главным меню (inline-кнопки на русском).
         Используется из /start и после отмены заказа / выхода из режима поддержки."""
@@ -1624,21 +1639,17 @@ class AutoConfigBot:
             elif call.data == "update_existing":
                 orders = self.payment_system.get_user_orders(user_id)
                 active_orders = [o for o in orders if o['payment_status'] == 'paid']
-                
-                if active_orders:
-                    markup = types.InlineKeyboardMarkup()
-                    for order in active_orders[:3]:  # Показываем первые 3
-                        btn_text = f"📦 {order['order_id'][:8]}... ({order['server_ip']})"
-                        markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"update_{order['order_id']}"))
-                    
-                    self.bot.send_message(
-                        call.message.chat.id,
-                        "Выберите заказ для обновления:",
-                        reply_markup=markup
-                    )
-                else:
-                    self._show_welcome(call.message.chat.id)
-            
+                self._show_update_orders(call.message.chat.id, active_orders, 0)
+
+            elif call.data.startswith("update_more_"):
+                orders = self.payment_system.get_user_orders(user_id)
+                active_orders = [o for o in orders if o['payment_status'] == 'paid']
+                try:
+                    offset = max(int(call.data.split("_", 2)[2]), 0)
+                except ValueError:
+                    offset = 0
+                self._show_update_orders(call.message.chat.id, active_orders, offset)
+
             elif call.data.startswith("update_"):
                 order_id = call.data.replace("update_", "")
                 order = self.payment_system.get_order(order_id)
@@ -1740,24 +1751,27 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
                 self.bot.send_message(message.chat.id, "📭 У вас пока нет заказов.", reply_markup=self._main_menu_inline_keyboard())
                 return
             
-            response = "📋 *Ваши заказы:*\n\n"
-            
-            for order in orders:
-                status_emoji = "✅" if order['payment_status'] == 'paid' else "⏳"
-                delivered_emoji = "📨" if order['delivered_at'] else "📭"
-                server_ip = order['server_ip'] or '— (без сервера)'
-                sni = order['sni_hostname'] or '—'
-                
-                response += f"""
-{status_emoji} *Заказ {self._md_escape(order['order_id'][:8])}...*
+            per_page = 5
+            pages = [orders[i:i + per_page] for i in range(0, len(orders), per_page)]
+            for idx, chunk in enumerate(pages, 1):
+                title = "📋 *Ваши заказы:*" if len(pages) == 1 else f"📋 *Ваши заказы:* (часть {idx}/{len(pages)})"
+                parts = [title, ""]
+                for order in chunk:
+                    status_emoji = "✅" if order['payment_status'] == 'paid' else "⏳"
+                    delivered_emoji = "📨" if order['delivered_at'] else "📭"
+                    server_ip = order['server_ip'] or '— (без сервера)'
+                    sni = order['sni_hostname'] or '—'
+                    parts.append(f"""{status_emoji} *Заказ {self._md_escape(order['order_id'][:8])}...*
 • Сервер: {server_ip}
 • SNI: `{sni}`
 • Статус оплаты: {order['payment_status']}
 • Создан: {order['created_at'][:10]}
-• Доставлен: {delivered_emoji}
-                """
-            
-            self.bot.send_message(message.chat.id, response, parse_mode='Markdown', reply_markup=self._main_menu_inline_keyboard())
+• Доставлен: {delivered_emoji}""")
+                text = "\n".join(parts)
+                kwargs = {'parse_mode': 'Markdown'}
+                if idx == len(pages):
+                    kwargs['reply_markup'] = self._main_menu_inline_keyboard()
+                self.bot.send_message(message.chat.id, text, **kwargs)
         
         @self.bot.message_handler(commands=['vps'])
         def send_vps_help(message):
@@ -1900,7 +1914,7 @@ f"• Успешность: {donor['success_rate']:.0%}\n\n"
             # Получаем лучший донор
             best_donor = self.sni_db.get_best_donor()
             if best_donor:
-                status_text += f"\n✨ *Лучший донор:*\n"
+                status_text += "\n✨ *Лучший донор:*\n"
                 status_text += f"  • {best_donor['hostname']}\n"
                 status_text += f"  • Успешность: {best_donor['success_rate']:.2%}\n"
             
@@ -2667,7 +2681,7 @@ def main():
     print("="*60)
     
     if CRYPTOPAY_TOKEN:
-        print(f"✅ Crypto Pay: подключён")
+        print("✅ Crypto Pay: подключён")
     else:
         print("⚠️  Crypto Pay: токен не задан (CRYPTOPAY_TOKEN) — оплата будет отключена")
     
