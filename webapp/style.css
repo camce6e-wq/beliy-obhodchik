@@ -38,7 +38,7 @@ body::after {
 .skip-link:focus { top: 0; }
 
 .top { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 4px; }
-.brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); text-decoration: none; }
+.brand { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); text-decoration: none; }
 .brand span { color: var(--lime); }
 .brand-mark {
   display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px;
@@ -128,7 +128,7 @@ h1 em { font-style: normal; background: linear-gradient(100deg, var(--lime), #9f
 
 footer { margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--hair); color: var(--muted); font-size: .78rem; }
 footer p { margin: 0; }
-footer a { color: var(--lime); font-weight: 600; }
+footer a { color: var(--lime); font-weight: 600; display: inline-block; padding: 14px 4px; margin: -14px -4px; }
 
 /* bottom navigation — app-like pattern */
 .tabbar {
