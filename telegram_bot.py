@@ -39,11 +39,21 @@ except ImportError:
 from keenetic_config_generator import KeeneticConfigGenerator, quick_generate
 from sni_manager import SNIDatabase, SNIScanner
 
+
 # SSH-установка VPS (paramiko)
-try:
-    import paramiko
-except ImportError:
-    paramiko = None  # type: ignore[assignment]
+# paramiko опционален: без него команда SSH отключается (проверка paramiko is None ниже).
+# Через функцию, а не try/except + присваивание: иначе mypy даёт разный результат
+# в зависимости от того, установлен ли paramiko в окружении.
+def _load_paramiko() -> Any:
+    try:
+        import paramiko
+
+        return paramiko
+    except ImportError:
+        return None
+
+
+paramiko = _load_paramiko()
 
 # Настройка логирования
 logging.basicConfig(
