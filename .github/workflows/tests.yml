@@ -28,6 +28,11 @@ jobs:
           pip install ruff
           ruff check --select E9,F .
 
+      - name: Type check (production modules)
+        run: |
+          pip install mypy
+          mypy telegram_bot.py support_bot.py keenetic_config_generator.py sni_manager.py
+
       - name: Check shell script syntax
         run: |
           # setup_nfqws.sh уезжает на роутеры покупателей и имеет shebang /bin/sh,

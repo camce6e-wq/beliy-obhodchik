@@ -25,8 +25,8 @@ import os
 import sys
 import time
 
-sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 
 try:
     import telebot
@@ -123,9 +123,9 @@ class SupportBot:
         self.bot = telebot.TeleBot(token)
         self.admin_ids = list(admin_ids) if admin_ids else list(ADMIN_USER_IDS)
         # forward.message_id у владельца -> (user_id, chat_id)
-        self.forwards = {}
-        self.last_cmd = {}
-        self._spam_notified = {}
+        self.forwards: dict[int, tuple[int, int]] = {}
+        self.last_cmd: dict[int, float] = {}
+        self._spam_notified: dict[int, float] = {}
         self.register_handlers()
 
     # ===== Защита =====
