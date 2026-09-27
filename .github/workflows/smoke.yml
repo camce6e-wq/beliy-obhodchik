@@ -25,10 +25,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Telegram getMe (token alive)
-        if: ${{ secrets.BOT_TOKEN != '' }}
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
+          if [ -z "$BOT_TOKEN" ]; then echo "BOT_TOKEN not set — skip"; exit 0; fi
           set -e
           resp=$(curl -s --max-time 20 "https://api.telegram.org/bot${BOT_TOKEN}/getMe")
           echo "$resp" | grep -q '"ok":true' || { echo "::error ::getMe failed: $resp"; exit 1; }
