@@ -235,4 +235,22 @@ assert "по запросу" in text.lower() or "запросу" in text.lower()
 assert any(s["markup"] for s in sent), "должна быть кнопка поддержки"
 print("OK 13/13: /start claude -> запрос в поддержку")
 
+# 14) /guide и /faq — команды из меню BotFather обязаны отвечать
+for cmd, min_len, label in (("guide", 500, "инструкция"), ("faq", 500, "частые вопросы")):
+    handler = None
+    for h in bot.bot.message_handlers:
+        cmds = h.get("filters", {}).get("commands")
+        if isinstance(cmds, list) and cmd in cmds:
+            handler = h["function"]
+            break
+    assert handler, f"хендлер /{cmd} не найден"
+    sent.clear()
+    bot.last_cmd.clear()
+    handler(msg(f"/{cmd}"))
+    assert sent, f"/{cmd} должен отвечать"
+    body = " ".join(s["text"] for s in sent)
+    assert len(body) >= min_len, f"/{cmd}: ответ слишком короткий ({len(body)} симв.) — ловит catch-all"
+    assert any(s["markup"] for s in sent), f"/{cmd} должен давать главное меню"
+    print(f"OK 14/14: /{cmd} -> {label} ({len(body)} симв. + меню)")
+
 print("\nВСЕ ТЕСТЫ ПРОЙДЕНЫ")
