@@ -86,6 +86,18 @@ h1 em { font-style: normal; background: linear-gradient(100deg, var(--lime), #9f
 }
 .card h3 { margin: 0; font-size: 1.1rem; letter-spacing: -.02em; }
 .card p { margin: 0; color: var(--muted); font-size: .88rem; }
+.inc { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.inc li { position: relative; padding-left: 22px; color: var(--muted); font-size: .85rem; }
+.inc li::before {
+  content: ""; position: absolute; left: 0; top: 5px; width: 12px; height: 12px; border-radius: 3px;
+  background: var(--lime); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 6 9 17l-5-5' fill='none' stroke='%23000' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 6 9 17l-5-5' fill='none' stroke='%23000' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+
+.trust { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+.trust-item { padding: 14px 12px; background: rgba(255, 255, 255, .03); border: 1px solid var(--hair); border-radius: 16px; color: var(--muted); font-size: .74rem; line-height: 1.35; }
+.trust-item b { display: block; color: var(--ink); font-family: var(--mono); font-size: .84rem; margin-bottom: 4px; letter-spacing: -.01em; }
+
 .price { display: flex; align-items: baseline; gap: 9px; margin-top: 6px; }
 .price strong { font-family: var(--mono); font-size: 1.3rem; letter-spacing: -.04em; }
 .price span { color: var(--muted); font-size: .8rem; }
