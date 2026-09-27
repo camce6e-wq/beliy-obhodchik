@@ -75,6 +75,18 @@ def main():
             errors.append("%s: html[lang] is not 'ru'" % name)
         if not re.search(r'<meta name="description" content="[^"]+', html):
             errors.append("%s: missing non-empty meta description" % name)
+        title = re.search(r"<title>(.*?)</title>", html, re.S)
+        if title and not (10 <= len(title.group(1).strip()) <= 70):
+            errors.append("%s: title length %d outside 10..70" % (name, len(title.group(1).strip())))
+        desc = re.search(r'<meta name="description" content="([^"]*)"', html)
+        if desc and not (50 <= len(desc.group(1)) <= 165):
+            errors.append("%s: description length %d outside 50..165" % (name, len(desc.group(1))))
+        if 'rel="canonical"' not in html:
+            errors.append("%s: missing canonical" % name)
+        if 'property="og:title"' not in html:
+            errors.append("%s: missing og:title" % name)
+        if 'property="og:image"' not in html:
+            errors.append("%s: missing og:image" % name)
         if "<title>" not in html or html.count("<title>") != 1:
             errors.append("%s: expected exactly one <title>" % name)
         if html.count('class="skip-link"') == 0:
