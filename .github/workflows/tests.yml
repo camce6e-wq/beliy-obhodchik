@@ -25,12 +25,12 @@ jobs:
 
       - name: Lint (fatal errors and real bugs)
         run: |
-          pip install ruff
+          pip install ruff==0.16.9
           ruff check --select E9,F .
 
       - name: Type check (production modules)
         run: |
-          pip install mypy
+          pip install mypy==2.3.1
           mypy telegram_bot.py support_bot.py keenetic_config_generator.py sni_manager.py
 
       - name: Check shell script syntax
