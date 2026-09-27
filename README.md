@@ -7,15 +7,36 @@
 ## 📁 Структура проекта
 
 ```
-sni-database/
-├── index.html                 # Лендинг для приёма заказов
-├── telegram_bot.py            # Автоматический Telegram-бот
-├── support_bot.py             # Бот поддержки (пересылка вопросов владельцу)
-├── keenetic_config_generator.py # Генератор конфигов для Keenetic
-├── sni_manager.py             # База SNI-доноров с TLS-проверкой работоспособности
-├── database_schema.sql        # Схема базы данных
-├── requirements.txt           # Зависимости Python
-└── README.md                  # Эта инструкция
+├── index.html                  # Лендинг для приёма заказов
+├── service-full.html           # Страницы услуг (детально)
+├── service-dpi.html
+├── service-claude.html
+├── service-transfer.html
+├── 404.html, robots.txt,
+│   sitemap.xml,
+│   manifest.webmanifest        # PWA и SEO
+├── css/style.css               # Стили лендинга
+├── img/                        # Иконки и изображения
+├── webapp/                     # Веб-приложение (управление конфигом)
+├── telegram_bot.py             # Автоматический Telegram-бот
+├── support_bot.py              # Бот поддержки (пересылка вопросов владельцу)
+├── keenetic_config_generator.py# Генератор конфигов для Keenetic
+├── sni_manager.py              # База SNI-доноров с TLS-проверкой
+├── database_schema.sql         # Схема базы данных
+├── setup_vps.sh                # Скрипт установки Xray на VPS (отдаётся клиенту)
+├── setup_nfqws.sh              # Скрипт обхода DPI без сервера (для роутера)
+├── run_prod_bot.bat            # Запуск бота на Windows
+├── run_support_bot.bat         # Запуск бота поддержки на Windows
+├── deploy/                     # Скрипты деплоя на VPS (systemd, update.sh)
+├── tests/                      # CI-тесты GitHub Pages
+├── test_*.py                   # Тесты бота
+├── requirements.txt            # Зависимости Python
+├── .github/workflows/tests.yml # CI: линт, компиляция, тесты
+├── INSTRUCTIONS.md             # Инструкция для пользователя
+├── START_HERE.md               # Быстрый старт владельца
+├── VPS_QUICKSTART.md           # Как завести свой сервер
+├── CHANGELOG.md                # История изменений
+└── README.md                   # Эта инструкция
 ```
 
 ## ⚡ Быстрый старт
@@ -125,6 +146,54 @@ CRYPTOPAY_TOKEN=токен_приложения_Crypto_Pay
 3. Загрузи обновлённый файл на GitHub
 4. Сайт автоматически обновится через 1-2 минуты
 
+## 🧪 Тесты и деплой
+
+### Локальный запуск (разработка)
+
+```bash
+pip install -r requirements.txt
+python telegram_bot.py       # основной бот (токены из .env)
+python support_bot.py        # бот поддержки (если настроен)
+```
+
+### Тесты
+
+```bash
+# Все тесты бота (Python, по одному файлу — копирует поведение CI)
+python test_menu_flow.py           # сквозной сценарий покупки (меню, оплата, конфиг)
+python test_crypto_payment.py      # оплата через Crypto Pay
+python test_stars_payment.py       # оплата звёздами Telegram
+python test_support.py test_support_bot.py
+python test_handlers.py
+python test_dpi_flow.py test_config_generator.py
+python test_defense_paths.py test_security_and_p2.py
+python test_landing_html.py        # вёрстка и ссылки лендинга
+
+# Тесты сайта (используются и в CI, и при деплое):
+python tests/test_site_pages.py    # ключевые страницы сайта
+python tests/test_contrast.py      # цветовой контраст (a11y)
+```
+
+CI (`.github/workflows/tests.yml`, запускается на каждый push) дополнительно делает:
+`ruff check --select E9,F63,F7,F82`, `py_compile` всех модулей и `sh -n`/`bash -n`
+скриптов установки.
+
+### Деплой
+
+- **Сайт** (GitHub Pages): правки делаются в рабочей папке **Default Project**, затем публикация:
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File ".\deploy_site.ps1" -CommitMsg "feat(site): описание"
+  ```
+  Скрипт копирует веб-файлы в репозиторий, коммитит и ждёт сборку Pages.
+  Живой сайт: https://camce6e-wq.github.io/beliy-obhodchik/
+- **Бот** (VPS `89.125.68.226`): после любого изменения бота на `main` выполнить
+  ```bash
+  bash /opt/beliy-obhodchik/deploy/update.sh
+  ```
+  Скрипт делает `git pull --ff-only` + `pip install -r requirements.txt` + перезапуск
+  systemd-сервисов `beliy-obhodchik` и `beliy-obhodchik-support`. Логи:
+  `/var/log/beliy-obhodchik/`.
+
 ## 🚨 Важные моменты
 
 ### Юридические аспекты:
@@ -179,7 +248,7 @@ CRYPTOPAY_TOKEN=токен_приложения_Crypto_Pay
 
 1. **Протестируй систему** на себе
 2. **Платёжные системы** уже настроены: Crypto Pay и Telegram Stars (см. `.env.example`)
-3. **Расскажи о серви��е** на 4PDA и форумах
+3. **Расскажи о сервисе** на 4PDA и форумах
 4. **Собери первые отзывы** от пользователей
 5. **Масштабируй** на другие роутеры
 
