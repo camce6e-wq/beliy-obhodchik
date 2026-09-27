@@ -77,8 +77,8 @@ h1 em { font-style: normal; background: linear-gradient(100deg, var(--lime), #9f
   background: radial-gradient(420px 180px at 100% 0, rgba(201, 242, 77, .1), transparent 60%);
 }
 .card-head { display: flex; align-items: center; justify-content: space-between; }
-.icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; color: var(--ink); background: rgba(255, 255, 255, .04); border: 1px solid var(--hair); }
-.card.featured .icon { color: var(--lime); background: rgba(201, 242, 77, .1); border-color: rgba(201, 242, 77, .28); }
+.icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; color: var(--ink); background: rgba(255, 255, 255, .07); border: 1px solid var(--hair-2); }
+.card.featured .icon { color: #0a0c10; background: var(--lime); border-color: transparent; box-shadow: 0 6px 18px rgba(201, 242, 77, .3); }
 .tag {
   padding: 5px 11px; border-radius: 999px; background: rgba(201, 242, 77, .13);
   border: 1px solid rgba(201, 242, 77, .4); color: var(--lime); font-family: var(--mono);
