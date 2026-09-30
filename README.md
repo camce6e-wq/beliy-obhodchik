@@ -8,6 +8,7 @@
 
 ```
 ├── index.html                  # Лендинг для приёма заказов
+├── order.html                  # Заказ и оплата USDT без Telegram (выдача в браузере)
 ├── service-full.html           # Страницы услуг (детально)
 ├── service-dpi.html
 ├── service-claude.html
@@ -16,6 +17,7 @@
 │   sitemap.xml,
 │   manifest.webmanifest        # PWA и SEO
 ├── css/style.css               # Стили лендинга
+├── js/config_generator.js      # Браузерный генератор конфигов (выдача после оплаты)
 ├── img/                        # Иконки и изображения
 ├── webapp/                     # Веб-приложение (управление конфигом)
 ├── telegram_bot.py             # Автоматический Telegram-бот
@@ -168,6 +170,7 @@ python test_handlers.py
 python test_dpi_flow.py test_config_generator.py
 python test_defense_paths.py test_security_and_p2.py
 python test_landing_html.py        # вёрстка и ссылки лендинга
+python test_config_generator_js.py # паритет JS-генератора с ботом (нужен node)
 
 # Тесты сайта (используются и в CI, и при деплое):
 python tests/test_site_pages.py    # ключевые страницы сайта

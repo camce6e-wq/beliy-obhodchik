@@ -46,6 +46,9 @@
 - Deep-link `order.html?tariff=dpi` подставляет тариф со страницы услуги
   (4 ссылки в `service-dpi.html`); параметр не перетирает уже оплаченный
   тариф и съедается из URL после применения. Тест ссылок учёл query-часть href.
+- `smoke.yml` следит за воронкой заказа (`order.html`, `js/config_generator.js`,
+  `setup_nfqws.sh`); README — `order.html`, `js/` и JS-тест в структуре и списке
+  тестов.
 
 ### Fixed
 

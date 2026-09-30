@@ -15,7 +15,7 @@ jobs:
         run: |
           set -e
           base="https://camce6e-wq.github.io/beliy-obhodchik"
-          for u in "" css/style.css service-full.html service-dpi.html service-claude.html service-transfer.html webapp/index.html robots.txt sitemap.xml manifest.webmanifest img/og-image.png; do
+          for u in "" css/style.css order.html js/config_generator.js setup_nfqws.sh service-full.html service-dpi.html service-claude.html service-transfer.html webapp/index.html robots.txt sitemap.xml manifest.webmanifest img/og-image.png; do
             code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$base/$u")
             echo "$code /$u"
             test "$code" = "200" || { echo "::error ::/$u -> $code"; exit 1; }
