@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Оплата услуг обхода блокировок в USDT с проверкой транзакции прямо в браузере. Telegram не требуется."><meta name="theme-color" content="#0d1017"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="БелыйОбходчик"><meta property="og:type" content="website"><meta property="og:locale" content="ru_RU"><meta property="og:title" content="Оплата — БелыйОбходчик"><meta property="og:description" content="Оплата услуг обхода блокировок в USDT с проверкой транзакции прямо в браузере. Telegram не требуется."><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://camce6e-wq.github.io/beliy-obhodchik/img/og-image.png"><meta property="og:image" content="https://camce6e-wq.github.io/beliy-obhodchik/img/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:type" content="image/png"><title>Оплата и получение доступа — БелыйОбходчик</title><link rel="icon" href="img/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="img/apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest"><link rel="canonical" href="https://camce6e-wq.github.io/beliy-obhodchik/order.html"><link rel="stylesheet" href="css/style.css">
+<style>
+.pay-block{margin:44px 0 0;padding:30px;border:1px solid var(--line);border-radius:var(--radius);background:var(--card)}
+.pay-block h2{margin-bottom:6px}
+.pay-hint{color:var(--muted);font-size:.95rem;margin:0 0 22px}
+.pay-tariffs{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.pay-card{position:relative;display:flex;flex-direction:column;gap:6px;padding:20px;border:1.5px solid var(--line);border-radius:16px;background:#fff;cursor:pointer;transition:border-color .2s,box-shadow .2s}
+.pay-card:hover{border-color:#c9b8ff}
+.pay-card input{position:absolute;opacity:0;pointer-events:none}
+.pay-card strong{font-size:1.05rem}
+.pay-card span{color:var(--muted);font-size:.88rem}
+.pay-card b{font-family:var(--mono);font-size:.82rem;letter-spacing:.06em;color:var(--violet);text-transform:uppercase}
+.pay-card:has(input:checked){border-color:var(--violet);box-shadow:0 10px 30px rgba(109,94,252,.14)}
+.pay-card:has(input:focus-visible){outline:2px solid var(--violet);outline-offset:2px}
+.pay-amount{display:flex;flex-wrap:wrap;gap:16px 34px;align-items:flex-end;margin:26px 0 20px;padding-top:24px;border-top:1px solid var(--line)}
+.pay-amount div{display:flex;flex-direction:column;gap:5px}
+.pay-amount .lbl{font-size:.7rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#5f6a7d}
+.pay-amount .val{font-family:var(--mono);font-size:1.5rem;font-weight:700;word-break:break-all}
+.pay-amount .val.accent{color:var(--violet);font-size:1.75rem}
+.pay-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pay-row .button{flex:1;min-width:220px}
+.pay-status{margin-top:20px;padding:16px 18px;border-radius:14px;border:1px solid var(--line);background:#f7f8fa;font-size:.95rem;line-height:1.55}
+.pay-status.is-wait{border-color:#e6e1ff;background:#faf9ff}
+.pay-status.is-ok{border-color:#cdeeb6;background:#f5fdf0;color:#1f6b1f}
+.pay-status.is-err{border-color:#ffd6d6;background:#fff5f5;color:#a12020}
+.pay-status code{font-family:var(--mono);font-size:.85rem;word-break:break-all}
+.pay-note{margin-top:18px;color:var(--muted);font-size:.86rem;line-height:1.6}
+.pay-note ol{margin:8px 0 0;padding-left:20px}
+.pay-note li{margin-bottom:4px}
+.deliv-lbl{display:block;margin-top:18px;font-size:.7rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#5f6a7d}
+.deliv-ta{display:block;width:100%;min-height:150px;margin-top:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff;font-family:var(--mono);font-size:.82rem;line-height:1.5;resize:vertical}
+.deliv-ta:focus{outline:2px solid var(--violet);outline-offset:1px}
+</style></head>
+<body>
+  <a class="skip-link" href="#main">К содержимому</a>
+  <header class="site-header"><div class="container header-inner"><a class="brand" href="index.html">Белый<span>Обходчик</span><span class="brand-mark" aria-hidden="true">↗</span></a><nav class="nav" aria-label="Главное меню"><a href="index.html#services">Услуги</a><a href="index.html#how">Как это работает</a><a href="index.html#faq">Вопросы</a></nav><a class="button button-small" href="#pay">Оплатить</a></div></header>
+  <main id="main"><div class="container"><nav class="breadcrumbs" aria-label="Путь по сайту"><a href="index.html">Главная</a><span aria-hidden="true">/</span><span aria-current="page">Оплата</span></nav>
+    <div class="detail-hero"><div><p class="eyebrow">05 / Оплата</p><h1>Оплата без Telegram</h1><p class="lead">Оплата в USDT и проверка транзакции происходят прямо на этой странице. Ни бот, ни мессенджер не нужны — весь путь работает даже если Telegram недоступен.</p></div><aside class="detail-aside"><span class="aside-label">Способ оплаты</span><strong>USDT <small>сеть TRC-20</small></strong><p>Проверка транзакции в браузере, без посредников.</p></aside></div>
+
+    <section class="pay-block" id="pay" aria-labelledby="pay-title">
+      <p class="eyebrow">Шаг 1</p><h2 id="pay-title">Выберите услугу</h2>
+      <p class="pay-hint">Сумма считается в USDT по текущему курсу. Тариф и сумма фиксируются в момент первой проверки оплаты.</p>
+
+      <div class="pay-tariffs" id="tariffs">
+        <label class="pay-card"><input type="radio" name="tariff" value="vps" checked><b>01 / С сервером</b><strong>Обход со своим VPS</strong><span>Обход и настройка роутера через ваш сервер</span></label>
+        <label class="pay-card"><input type="radio" name="tariff" value="dpi"><b>02 / Без сервера</b><strong>Только обход DPI</strong><span>Настройка на совместимом устройстве, аренда не нужна</span></label>
+      </div>
+
+      <div class="pay-amount">
+        <div><span class="lbl">К оплате</span><span class="val accent" id="sum">—</span></div>
+        <div><span class="lbl">Курс</span><span class="val" id="rate">—</span></div>
+        <div><span class="lbl">Сеть</span><span class="val">TRC-20</span></div>
+      </div>
+
+      <div class="pay-amount" style="margin-top:0;padding-top:0;border-top:none">
+        <div style="flex:1;min-width:260px"><span class="lbl">Адрес кошелька</span><span class="val" id="wallet">—</span></div>
+        <button class="button button-small" type="button" id="copy">Скопировать адрес</button>
+      </div>
+
+      <div class="pay-row"><button class="button" type="button" id="check">Я оплатил — проверить</button></div>
+
+      <div class="pay-status" id="status" role="status" aria-live="polite">Выберите тариф и отправьте USDT на адрес выше. Затем нажмите кнопку проверки.</div>
+
+      <div class="pay-note"><strong>Как проходит проверка</strong>
+        <ol>
+          <li>Переводите ровно сумму из блока «К оплате» в сети TRC-20.</li>
+          <li>Нажимаете «Я оплатил — проверить» — страница сама смотрит входящие переводы за последний час.</li>
+          <li>При совпадении суммы транзакция подтверждается автоматически, отдельный чек или скриншот не нужны.</li>
+        </ol>
+        Перевод от другого тарифа или с другой суммой не будет засчитан: сверяется точная сумма и окно в 60 минут.
+      </div>
+    </section>
+
+    <section class="pay-block" id="delivery" hidden aria-labelledby="deliv-title">
+      <p class="eyebrow">Шаг 2</p><h2 id="deliv-title">Получение доступа</h2>
+      <p class="pay-hint">Оплата подтверждена. Тариф: <strong id="deliv-tariff">—</strong>.</p>
+
+      <div id="deliv-dpi" hidden>
+        <div class="pay-row"><a class="button" href="setup_nfqws.sh" download>Скачать setup_nfqws.sh</a></div>
+        <div class="pay-note"><strong>Как установить (10 минут)</strong>
+          <ol>
+            <li>Скачайте файл кнопкой выше.</li>
+            <li>Загрузите его на роутер — через панель Keenetic, SSH или USB.</li>
+            <li>Выполните <code>sudo bash setup_nfqws.sh</code>.</li>
+            <li>Скрипт сам поставит Zapret, включит автозапуск и стратегию под YouTube, Discord, Instagram, TikTok.</li>
+            <li>Откройте YouTube — должно работать сразу после обновления страницы.</li>
+          </ol>
+          Работает на Keenetic (Entware), OpenWrt и любых роутерах с opkg/apk. Честно: скрипт обходит блокировку по SNI-признаку — обычный случай у провайдеров РФ. Если блокировка по IP-подсети целиком — нужен свой сервер, тариф «С сервером».
+        </div>
+      </div>
+
+      <div id="deliv-vps" hidden>
+        <div class="pay-note"><strong>Как получить конфиги</strong>
+          <ol>
+            <li>Поднимите сервер скриптом <code>setup_vps.sh</code> — он сам напечатает блок параметров в конце вывода.</li>
+            <li>Скопируйте этот блок целиком: от <code>===BELIY-OBHODCHIK-VLESS===</code> до <code>===BELIY-OBHODCHIK-VLESS-END===</code>.</li>
+            <li>Вставьте его в поле ниже и нажмите кнопку — архив с конфигами скачается прямо в браузере, сервер не нужен.</li>
+          </ol>
+        </div>
+        <label class="deliv-lbl" for="deliv-block">Блок параметров с сервера</label>
+        <textarea class="deliv-ta" id="deliv-block" spellcheck="false" placeholder="===BELIY-OBHODCHIK-VLESS===&#10;SERVER_IP=...&#10;UUID=...&#10;PUBLIC_KEY=...&#10;SHORT_ID=...&#10;SNI_HOSTNAME=...&#10;===BELIY-OBHODCHIK-VLESS-END==="></textarea>
+        <div class="pay-row" style="margin-top:14px"><button class="button" type="button" id="deliv-zip">Скачать конфиги (.zip)</button></div>
+      </div>
+    </section>
+  </div></main>
+  <footer class="site-footer"><div class="container footer-inner"><a class="brand" href="index.html">Белый<span>Обходчик</span></a><nav aria-label="Ссылки в подвале"><a href="index.html#services">Услуги</a><a href="index.html#faq">Вопросы</a><a href="webapp/index.html">Приложение</a><a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener noreferrer">Telegram ↗</a></nav><small>© 2026 БелыйОбходчик</small></div></footer>
+  <a class="sticky-cta" href="#pay">Оплатить · от 1000 ₽</a>
+
+<script src="js/config_generator.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var CFG = {
+    wallet: "TCUJondgJ3PA321H8JJapP1dHht1dL6bfu",
+    usdtContract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    windowMinutes: 60,
+    rateFallback: 85,
+    pollIntervalMs: 10000,
+    pollLimitMs: 600000
+  };
+
+  var TARIFFS = {
+    vps: { rub: 1500, title: "Обход со своим VPS" },
+    dpi: { rub: 1000, title: "Только обход DPI" }
+  };
+
+  var el = function (id) { return document.getElementById(id); };
+  var statusEl = el("status");
+  var sumEl = el("sum");
+  var rateEl = el("rate");
+  var walletEl = el("wallet");
+  var checkBtn = el("check");
+  var locked = null;
+  var polling = false;
+
+  function setStatus(text, kind) {
+    statusEl.className = "pay-status" + (kind ? " is-" + kind : "");
+    statusEl.innerHTML = text;
+  }
+
+  function selectedTariff() {
+    var checked = document.querySelector("input[name=tariff]:checked");
+    return checked ? checked.value : "vps";
+  }
+
+  function lockedStore() {
+    try { return JSON.parse(localStorage.getItem("bo_pay") || "null"); } catch (e) { return null; }
+  }
+
+  function saveLocked(value) {
+    try { localStorage.setItem("bo_pay", JSON.stringify(value)); } catch (e) {}
+  }
+
+  function paidStore() {
+    try { return JSON.parse(localStorage.getItem("bo_paid") || "null"); } catch (e) { return null; }
+  }
+
+  function savePaid(value) {
+    try { localStorage.setItem("bo_paid", JSON.stringify(value)); } catch (e) {}
+  }
+
+  function removePaid() {
+    try { localStorage.removeItem("bo_paid"); } catch (e) {}
+  }
+
+  function usdtAmount(rub, rate) {
+    return Math.ceil(rub / rate * 100) / 100;
+  }
+
+  function formatUsdt(value) {
+    return value.toFixed(2) + " USDT";
+  }
+
+  function renderAmount() {
+    var stored = lockedStore();
+    if (stored && stored.tariff) {
+      locked = stored;
+      sumEl.textContent = formatUsdt(stored.amount);
+      rateEl.textContent = stored.rate + " ₽";
+      var radio = document.querySelector("input[name=tariff][value=" + stored.tariff + "]");
+      if (radio) radio.checked = true;
+      return;
+    }
+    var tariff = TARIFFS[selectedTariff()];
+    sumEl.textContent = formatUsdt(usdtAmount(tariff.rub, CFG.rateFallback));
+    rateEl.textContent = "загрузка…";
+    fetchRate().then(function (rate) {
+      var used = rate || CFG.rateFallback;
+      sumEl.textContent = formatUsdt(usdtAmount(tariff.rub, used));
+      rateEl.textContent = Math.round(used * 100) / 100 + " ₽" + (rate ? "" : " (резерв)");
+    });
+  }
+
+  function fetchRate() {
+    return fetch("https://open.er-api.com/v6/latest/USD")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { return (j && j.rates && j.rates.RUB) ? j.rates.RUB : null; })
+      .catch(function () { return null; });
+  }
+
+  function ensureLocked() {
+    var stored = lockedStore();
+    if (stored) {
+      locked = stored;
+      return Promise.resolve(stored);
+    }
+    var tariffKey = selectedTariff();
+    var tariff = TARIFFS[tariffKey];
+    return fetchRate().then(function (raw) {
+      var rate = raw || CFG.rateFallback;
+      locked = {
+        tariff: tariffKey,
+        rub: tariff.rub,
+        amount: usdtAmount(tariff.rub, rate),
+        rate: Math.round(rate * 100) / 100,
+        startedAt: Date.now()
+      };
+      saveLocked(locked);
+      renderAmount();
+      return locked;
+    });
+  }
+
+  function findTransfer(amount) {
+    if (!CFG.wallet) {
+      return Promise.reject(new Error("Адрес кошелька не настроен"));
+    }
+    var since = Date.now() - CFG.windowMinutes * 60000;
+    var url = "https://api.trongrid.io/v1/accounts/" + CFG.wallet +
+      "/transactions/trc20?only_to=true&limit=50&order_by=block_timestamp,desc&start_time=" + since;
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error("Сервис проверки ответил ошибкой " + r.status);
+      return r.json();
+    }).then(function (data) {
+      var rows = (data && data.data) || [];
+      for (var i = 0; i < rows.length; i++) {
+        var row = rows[i];
+        var info = row.token_info || {};
+        if (row.type && row.type !== "Transfer") continue;
+        if (!row.block_timestamp || row.block_timestamp < since) continue;
+        var contract = (info.address || "").toLowerCase();
+        var isUsdt = contract === CFG.usdtContract.toLowerCase() ||
+          (!contract && String(info.symbol || "").toUpperCase() === "USDT");
+        if (!isUsdt) continue;
+        var value = Number(row.value) / Math.pow(10, Number(info.decimals || 6));
+        if (Math.abs(value - amount) < 0.02) {
+          return row.transaction_id;
+        }
+      }
+      return null;
+    });
+  }
+
+  function showDelivery(scroll) {
+    var paid = paidStore();
+    var tariff = (paid && paid.tariff) || (locked && locked.tariff) || selectedTariff();
+    el("delivery").hidden = false;
+    el("deliv-tariff").textContent = TARIFFS[tariff].title;
+    el("deliv-dpi").hidden = tariff !== "dpi";
+    el("deliv-vps").hidden = tariff !== "vps";
+    if (scroll) el("delivery").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function confirmPayment(txid, noScroll) {
+    polling = false;
+    var paid = paidStore();
+    savePaid({
+      tx: txid,
+      tariff: (paid && paid.tariff) || (locked && locked.tariff) || selectedTariff(),
+      at: Date.now()
+    });
+    setStatus("Оплата подтверждена. Транзакция <code>" + txid + "</code>.", "ok");
+    showDelivery(!noScroll);
+  }
+
+  function checkOnce(silent) {
+    if (!locked) return Promise.resolve(null);
+    if (!silent) setStatus("Проверяем входящие переводы за последний час…", "wait");
+    return findTransfer(locked.amount).then(function (txid) {
+      if (txid) {
+        confirmPayment(txid);
+        return txid;
+      }
+      if (!silent) {
+        setStatus(
+          "Перевод пока не найден. Убедитесь, что отправили ровно <strong>" +
+          formatUsdt(locked.amount) + "</strong> в сети TRC-20. Автопроверка запущена каждые 10 секунд — вкладку можно оставить открытой.",
+          "err"
+        );
+      }
+      return null;
+    });
+  }
+
+  function startPolling() {
+    if (polling) return;
+    polling = true;
+    var deadline = Date.now() + CFG.pollLimitMs;
+    var tick = function () {
+      if (!polling) return;
+      if (Date.now() > deadline) {
+        polling = false;
+        setStatus("Автопроверка остановилась (10 минут). Нажмите «Я оплатил — проверить» ещё раз.", "err");
+        return;
+      }
+      checkOnce(true).then(function (txid) {
+        if (txid) return;
+        setTimeout(tick, CFG.pollIntervalMs);
+      }).catch(function (err) {
+        polling = false;
+        setStatus(err && err.message ? err.message : "Не удалось проверить перевод. Повторите попытку.", "err");
+      });
+    };
+    setTimeout(tick, CFG.pollIntervalMs);
+  }
+
+  document.querySelectorAll("input[name=tariff]").forEach(function (input) {
+    input.addEventListener("change", function () {
+      polling = false;
+      var stored = lockedStore();
+      if (stored) {
+        try { localStorage.removeItem("bo_pay"); } catch (e) {}
+        locked = null;
+      }
+      removePaid();
+      el("delivery").hidden = true;
+      renderAmount();
+    });
+  });
+
+  checkBtn.addEventListener("click", function () {
+    checkBtn.disabled = true;
+    ensureLocked()
+      .then(function () { return checkOnce(false); })
+      .then(function (txid) { if (!txid) startPolling(); })
+      .catch(function (err) {
+        setStatus(err && err.message ? err.message : "Ошибка проверки. Повторите попытку.", "err");
+      })
+      .then(function () { checkBtn.disabled = false; });
+  });
+
+  el("deliv-zip").addEventListener("click", function () {
+    var parsed = BeliyConfig.parseSetupBlock(el("deliv-block").value);
+    if (!parsed) {
+      setStatus(
+        "Блок параметров не найден или неполный. Нужен вывод целиком — от <code>===BELIY-OBHODCHIK-VLESS===</code> до <code>===BELIY-OBHODCHIK-VLESS-END===</code>.",
+        "err"
+      );
+      return;
+    }
+    var bytes = BeliyConfig.makeZip(BeliyConfig.buildFiles(parsed));
+    var url = URL.createObjectURL(new Blob([bytes], { type: "application/zip" }));
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = "beliy-obhodchik-config.zip";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    setStatus("Архив скачан: <code>beliy-obhodchik-config.zip</code>. Внутри README.txt с инструкцией и конфиги для роутера.", "ok");
+  });
+
+  el("copy").addEventListener("click", function () {
+    var text = CFG.wallet;
+    if (!text) { setStatus("Адрес кошелька не настроен.", "err"); return; }
+    var done = function () {
+      setStatus("Адрес скопирован. Отправьте на него <strong>" + sumEl.textContent + "</strong> в сети TRC-20.", "wait");
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(done);
+    } else {
+      var area = document.createElement("textarea");
+      area.value = text;
+      document.body.appendChild(area);
+      area.select();
+      try { document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(area);
+      done();
+    }
+  });
+
+  walletEl.textContent = CFG.wallet || "не задан";
+  renderAmount();
+
+  // ponytail: выдача помнится только локально и не перепроверяется на сервере —
+  // клиентский гейт; настоящая верификация требует домена и бэкенда (KNOWN_ISSUES #4).
+  var paid = paidStore();
+  if (paid && paid.tx) confirmPayment(paid.tx, true);
+})();
+</script>
+</body></html>
