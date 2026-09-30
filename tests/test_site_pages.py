@@ -143,6 +143,7 @@ def main():
         for href in internal_links(html):
             checked_links += 1
             target, _, anchor = href.partition("#")
+            target = target.split("?", 1)[0]
             if target:
                 ref_path = path.parent / target
                 if not ref_path.exists():

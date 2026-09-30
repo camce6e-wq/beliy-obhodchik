@@ -383,11 +383,31 @@
   });
 
   walletEl.textContent = CFG.wallet || "не задан";
+
+  // deep-link order.html?tariff=dpi подставляет тариф, но не перетирает
+  // уже оплаченный; параметр глотается, чтобы F5 не вернул чужой выбор.
+  var paid = paidStore();
+  var want = null;
+  try { want = new URLSearchParams(window.location.search).get("tariff"); } catch (e) {}
+  if (want && TARIFFS[want]) {
+    try { history.replaceState(null, "", window.location.pathname); } catch (e) {}
+    if (!(paid && paid.tx)) {
+      var radio0 = document.querySelector("input[name=tariff][value=" + want + "]");
+      var stored0 = lockedStore();
+      if (radio0 && (!stored0 || stored0.tariff !== want)) {
+        radio0.checked = true;
+        if (stored0) {
+          try { localStorage.removeItem("bo_pay"); } catch (e) {}
+          locked = null;
+        }
+      }
+    }
+  }
+
   renderAmount();
 
   // ponytail: выдача помнится только локально и не перепроверяется на сервере —
   // клиентский гейт; настоящая верификация требует домена и бэкенда (KNOWN_ISSUES #4).
-  var paid = paidStore();
   if (paid && paid.tx) confirmPayment(paid.tx, true);
 })();
 </script>
