@@ -35,6 +35,15 @@
 - `AUTONOMOUS_PLAN.md`, `ASSUMPTIONS.md`, `KNOWN_ISSUES.md` — документация к
   автономному прогону; README — актуальная структура и раздел «Тесты и деплой».
 
+### Changed
+
+- Покупательские CTA ведут на `order.html`, а не в Telegram: кнопки шапки,
+  героя и липкие CTA на главной, `service-full.html` и `service-dpi.html`
+  (тексты без «в боте/в Telegram»). Telegram остался для вопросов, поддержки,
+  подвалов и услуг без тарифа в `order.html` (Claude, перенос).
+- `deploy_site.ps1`: `order.html` и `js/` добавлены в списки копирования,
+  коммита и живых проверок.
+
 ### Fixed
 
 - `/myorders` падал с `400 Bad Request` при наличии заказов: `order_...` c
