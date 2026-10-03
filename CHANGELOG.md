@@ -27,9 +27,9 @@
   Связка: ссылка из `order.html` и FAQ `index.html` (видимый + JSON-LD),
   страница в `PAGES`, `sitemap.xml`, `smoke.yml` и `deploy_site.ps1`.
 - Поддержка без Telegram: шаблон Issue
-  (`.github/ISSUE_TEMPLATE/bug.yml` — услуга, проблема, устройство, вывод без
+  (  `.github/ISSUE_TEMPLATE/bug.yml` — услуга, проблема, устройство, вывод без
   секретов с обязательной галкой) и ссылки на Issues/email в FAQ и подвале
-  `index.html` (адрес-заглушка `support@example.com` — заменить на боевой).
+  `index.html` (почта `dliadiablio@gmail.com`).
 - `/myorders` пагинация: длинный список разбивается на части по 5 заказов
   (с нумерацией «часть X/Y» и меню на последней).
 - Меню «Обновить существующий заказ»: показаны все активные заказы по 6 +
