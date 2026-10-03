@@ -1,0 +1,50 @@
+name: Проблема или вопрос
+description: Опишите проблему здесь — ответим, даже если Telegram недоступен
+title: "[Проблема]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Telegram заблокирован или недоступен? Опишите проблему здесь — разберёмся
+        в этом трекере, ответ придёт на эту страницу (нужен только браузер).
+
+        **Важно:** не вставляйте блок `===BELIY-OBHODCHIK-VLESS===` целиком —
+        это данные вашего сервера, их увидят все. Вырезайте значения.
+  - type: dropdown
+    id: tariff
+    attributes:
+      label: Услуга
+      options:
+        - Полный пакет (VPS)
+        - Обход DPI без сервера
+        - Claude Code
+        - Перенос настроек
+        - Пока не покупал
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Что происходит
+      description: Опишите проблему своими словами и что уже пробовали.
+      placeholder: "Например: после запуска скрипта не появился блок вывода..."
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Устройство и провайдер
+      placeholder: "Например: Keenetic Hero 4G / МТС"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Вывод скрипта или ошибки
+      description: Вставляйте текстом. Пароли, UUID и ключи вырезайте.
+      render: shell
+  - type: checkboxes
+    id: secrets
+    attributes:
+      label: Проверка перед отправкой
+      options:
+        - label: Я вырезал из вывода пароли, UUID и ключи
+          required: true

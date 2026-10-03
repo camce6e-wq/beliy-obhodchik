@@ -83,7 +83,7 @@ def internal_links(text: str):
     return [
         h
         for h in hrefs
-        if not re.match(r"^(https?:|mailto:|tel:)//", h)
+        if not re.match(r"^(https?:|mailto:|tel:)", h)
         and not h.startswith("#")
         and not h.startswith("//")
     ]
