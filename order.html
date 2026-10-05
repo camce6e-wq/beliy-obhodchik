@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Оплата услуг обхода блокировок в USDT с проверкой транзакции прямо в браузере. Telegram не требуется."><meta name="theme-color" content="#0d1017"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="БелыйОбходчик"><meta property="og:type" content="website"><meta property="og:locale" content="ru_RU"><meta property="og:title" content="Оплата — БелыйОбходчик"><meta property="og:description" content="Оплата услуг обхода блокировок в USDT с проверкой транзакции прямо в браузере. Telegram не требуется."><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://camce6e-wq.github.io/beliy-obhodchik/img/og-image.png"><meta property="og:image" content="https://camce6e-wq.github.io/beliy-obhodchik/img/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:type" content="image/png"><title>Оплата и получение доступа — БелыйОбходчик</title><link rel="icon" href="img/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="img/apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest"><link rel="canonical" href="https://camce6e-wq.github.io/beliy-obhodchik/order.html"><link rel="stylesheet" href="css/style.css">
+<head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.trongrid.io https://open.er-api.com https://divisions-motorcycles-pick-hardwood.trycloudflare.com; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Оплата услуг обхода блокировок в USDT с проверкой транзакции прямо в браузере. Telegram не требуется."><meta name="theme-color" content="#0d1017"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="БелыйОбходчик"><meta property="og:type" content="website"><meta property="og:locale" content="ru_RU"><meta property="og:title" content="Оплата — БелыйОбходчик"><meta property="og:description" content="Оплата услуг обхода блокировок в USDT с проверкой транзакции прямо в браузере. Telegram не требуется."><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://camce6e-wq.github.io/beliy-obhodchik/img/og-image.png"><meta property="og:image" content="https://camce6e-wq.github.io/beliy-obhodchik/img/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:type" content="image/png"><title>Оплата и получение доступа — БелыйОбходчик</title><link rel="icon" href="img/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="img/apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest"><link rel="canonical" href="https://camce6e-wq.github.io/beliy-obhodchik/order.html"><link rel="stylesheet" href="css/style.css">
 <style>
 .pay-block{margin:44px 0 0;padding:30px;border:1px solid var(--line);border-radius:var(--radius);background:var(--card)}
 .pay-block h2{margin-bottom:6px}
@@ -115,6 +115,7 @@
   "use strict";
 
   var CFG = {
+    apiUrl: "https://divisions-motorcycles-pick-hardwood.trycloudflare.com",
     wallet: "TCUJondgJ3PA321H8JJapP1dHht1dL6bfu",
     usdtContract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
     windowMinutes: 60,
@@ -129,6 +130,12 @@
   };
 
   var el = function (id) { return document.getElementById(id); };
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
   var statusEl = el("status");
   var sumEl = el("sum");
   var rateEl = el("rate");
@@ -204,54 +211,32 @@
 
   function ensureLocked() {
     var stored = lockedStore();
-    if (stored) {
+    if (stored && stored.lockId) {
       locked = stored;
       return Promise.resolve(stored);
     }
     var tariffKey = selectedTariff();
-    var tariff = TARIFFS[tariffKey];
-    return fetchRate().then(function (raw) {
-      var rate = raw || CFG.rateFallback;
+    return fetch(CFG.apiUrl + "/api/lock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tariff: tariffKey })
+    }).then(function (r) {
+      if (!r.ok) throw new Error("Сервер верификации ответил ошибкой " + r.status);
+      return r.json();
+    }).then(function (data) {
+      if (!data.ok) throw new Error(data.error || "Не удалось создать платёж");
       locked = {
         tariff: tariffKey,
-        rub: tariff.rub,
-        amount: usdtAmount(tariff.rub, rate),
-        rate: Math.round(rate * 100) / 100,
+        rub: TARIFFS[tariffKey].rub,
+        amount: data.amount,
+        rate: data.rate,
+        lockId: data.lock_id,
+        expiresAt: data.expires_at * 1000,
         startedAt: Date.now()
       };
       saveLocked(locked);
       renderAmount();
       return locked;
-    });
-  }
-
-  function findTransfer(amount) {
-    if (!CFG.wallet) {
-      return Promise.reject(new Error("Адрес кошелька не настроен"));
-    }
-    var since = Date.now() - CFG.windowMinutes * 60000;
-    var url = "https://api.trongrid.io/v1/accounts/" + CFG.wallet +
-      "/transactions/trc20?only_to=true&limit=50&order_by=block_timestamp,desc&start_time=" + since;
-    return fetch(url).then(function (r) {
-      if (!r.ok) throw new Error("Сервис проверки ответил ошибкой " + r.status);
-      return r.json();
-    }).then(function (data) {
-      var rows = (data && data.data) || [];
-      for (var i = 0; i < rows.length; i++) {
-        var row = rows[i];
-        var info = row.token_info || {};
-        if (row.type && row.type !== "Transfer") continue;
-        if (!row.block_timestamp || row.block_timestamp < since) continue;
-        var contract = (info.address || "").toLowerCase();
-        var isUsdt = contract === CFG.usdtContract.toLowerCase() ||
-          (!contract && String(info.symbol || "").toUpperCase() === "USDT");
-        if (!isUsdt) continue;
-        var value = Number(row.value) / Math.pow(10, Number(info.decimals || 6));
-        if (Math.abs(value - amount) < 0.02) {
-          return row.transaction_id;
-        }
-      }
-      return null;
     });
   }
 
@@ -273,24 +258,23 @@
       tariff: (paid && paid.tariff) || (locked && locked.tariff) || selectedTariff(),
       at: Date.now()
     });
-    setStatus("Оплата подтверждена. Транзакция <code>" + txid + "</code>.", "ok");
+    setStatus("Оплата подтверждена. Транзакция <code>" + escapeHtml(txid) + "</code>.", "ok");
     showDelivery(!noScroll);
   }
 
   function checkOnce(silent) {
-    if (!locked) return Promise.resolve(null);
+    if (!locked || !locked.lockId) return Promise.resolve(null);
     if (!silent) setStatus("Проверяем входящие переводы за последний час…", "wait");
-    return findTransfer(locked.amount).then(function (txid) {
-      if (txid) {
-        confirmPayment(txid);
-        return txid;
-      }
-      if (!silent) {
-        setStatus(
-          "Перевод пока не найден. Убедитесь, что отправили ровно <strong>" +
-          formatUsdt(locked.amount) + "</strong> в сети TRC-20. Автопроверка запущена каждые 10 секунд — вкладку можно оставить открытой.",
-          "err"
-        );
+    return fetch(CFG.apiUrl + "/api/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lock_id: locked.lockId })
+    }).then(function (r) {
+      if (!r.ok) throw new Error("Сервер верификации ответил ошибкой " + r.status);
+      return r.json();
+    }).then(function (data) {
+      if (data.ok && data.txid) {
+        return data.txid;
       }
       return null;
     });
@@ -312,7 +296,7 @@
         setTimeout(tick, CFG.pollIntervalMs);
       }).catch(function (err) {
         polling = false;
-        setStatus(err && err.message ? err.message : "Не удалось проверить перевод. Повторите попытку.", "err");
+        setStatus(err && err.message ? escapeHtml(err.message) : "Не удалось проверить перевод. Повторите попытку.", "err");
       });
     };
     setTimeout(tick, CFG.pollIntervalMs);
@@ -321,14 +305,14 @@
   document.querySelectorAll("input[name=tariff]").forEach(function (input) {
     input.addEventListener("change", function () {
       polling = false;
-      var stored = lockedStore();
-      if (stored) {
-        try { localStorage.removeItem("bo_pay"); } catch (e) {}
-        locked = null;
-      }
+      try { localStorage.removeItem("bo_pay"); } catch (e) {}
+      locked = null;
       removePaid();
       el("delivery").hidden = true;
       renderAmount();
+      ensureLocked().catch(function (err) {
+        setStatus(err && err.message ? escapeHtml(err.message) : "Не удалось создать платёж. Повторите попытку.", "err");
+      });
     });
   });
 
@@ -406,9 +390,8 @@
   }
 
   renderAmount();
+  ensureLocked().catch(function () {});
 
-  // ponytail: выдача помнится только локально и не перепроверяется на сервере —
-  // клиентский гейт; настоящая верификация требует домена и бэкенда (KNOWN_ISSUES #4).
   if (paid && paid.tx) confirmPayment(paid.tx, true);
 })();
 </script>

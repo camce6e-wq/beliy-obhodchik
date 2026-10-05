@@ -1,16 +1,16 @@
 # Зависимости для системы "БелыйОбходчик"
 
 # Телеграм-бот
-pyTelegramBotAPI>=4.16.0
+pyTelegramBotAPI==4.36.1
 
 # HTTP-запросы (Crypto Pay API, проверка доноров)
-requests>=2.31.0
+requests==2.34.2
 
 # Автоустановка на VPS пользователя по SSH
-paramiko>=3.4.0
+paramiko==5.0.0
 
 # Генерация ключей/конфигов (опционально)
-cryptography>=42.0.0
+cryptography==50.0.1
 
 # Установить всё одной командой:
 # pip install -r requirements.txt

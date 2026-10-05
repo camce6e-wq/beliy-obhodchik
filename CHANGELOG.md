@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### Security
+
+- **Серверная верификация оплаты** (`payment_verify.py` + `order.html`): сумма и проверка txid теперь на сервере (VPS), а не в браузере. Клиентский гейт `localStorage.bo_paid` больше не обязателен — выдача только после серверного подтверждения. Закрывает KNOWN_ISSUES #4. API доступен через Cloudflare Tunnel (HTTPS).
+- **XSS-фикс** (`order.html`): экранирование данных из TronGrid API (`txid`, сообщения об ошибках) через `escapeHtml` перед вставку в DOM.
+- **CSP-заголовки** на всех HTML-страницах: `default-src 'self'`, ограничение `connect-src`, `frame-ancestors 'none'`.
+- `requirements.txt` запинен на точные версии из продакшена (pyTelegramBotAPI==4.36.1, requests==2.34.2, paramiko==5.0.0, cryptography==50.0.1).
+
 ### Added
 
 - `order.html` — страница заказа и оплаты в USDT (TRC-20) без Telegram: выбор
