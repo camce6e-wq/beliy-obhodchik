@@ -15,12 +15,21 @@ jobs:
         run: |
           set -e
           base="https://beliyobhodchik.fun"
+          get_code() {
+            local path="$1" code=""
+            for i in 1 2 3 4 5 6; do
+              code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$base/$path")
+              case "$code" in 2*|404) echo "$code"; return 0 ;; esac
+              sleep 20
+            done
+            echo "$code"
+          }
           for u in "" css/style.css order.html pay-usdt.html reviews.html legal.html js/config_generator.js setup_nfqws.sh service-full.html service-dpi.html service-claude.html service-transfer.html webapp/index.html robots.txt sitemap.xml manifest.webmanifest img/og-image.png; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$base/$u")
+            code=$(get_code "$u")
             echo "$code /$u"
             test "$code" = "200" || { echo "::error ::/$u -> $code"; exit 1; }
           done
-          code404=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$base/this-page-does-not-exist")
+          code404=$(get_code "this-page-does-not-exist")
           echo "$code404 /this-page-does-not-exist (404)"
           test "$code404" = "404" || { echo "::error ::missing page -> $code404"; exit 1; }
 
