@@ -32,6 +32,7 @@
 .deliv-lbl{display:block;margin-top:18px;font-size:.7rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#5f6a7d}
 .deliv-ta{display:block;width:100%;min-height:150px;margin-top:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff;font-family:var(--mono);font-size:.82rem;line-height:1.5;resize:vertical}
 .deliv-ta:focus{outline:2px solid var(--violet);outline-offset:1px}
+#t-test[hidden]{display:none}
 </style></head>
 <body>
   <a class="skip-link" href="#main">К содержимому</a>
@@ -46,6 +47,7 @@
       <div class="pay-tariffs" id="tariffs">
         <label class="pay-card"><input type="radio" name="tariff" value="vps" checked><b>01 / С сервером</b><strong>Обход со своим VPS</strong><span>Обход и настройка роутера через ваш сервер</span></label>
         <label class="pay-card"><input type="radio" name="tariff" value="dpi"><b>02 / Без сервера</b><strong>Только обход DPI</strong><span>Настройка на совместимом устройстве, аренда не нужна</span></label>
+        <label class="pay-card" id="t-test" hidden><input type="radio" name="tariff" value="test"><b>03 / Тест</b><strong>Тест-доступ</strong><span>Проверка потока оплаты за 0.01 USDT</span></label>
       </div>
 
       <div class="pay-amount">
@@ -104,6 +106,13 @@
         <textarea class="deliv-ta" id="deliv-block" spellcheck="false" placeholder="===BELIY-OBHODCHIK-VLESS===&#10;SERVER_IP=...&#10;UUID=...&#10;PUBLIC_KEY=...&#10;SHORT_ID=...&#10;SNI_HOSTNAME=...&#10;===BELIY-OBHODCHIK-VLESS-END==="></textarea>
         <div class="pay-row" style="margin-top:14px"><button class="button" type="button" id="deliv-zip">Скачать конфиги (.zip)</button></div>
       </div>
+      <div id="deliv-test" hidden>
+        <div class="pay-note"><strong>Тест пройден</strong>
+          Платёж прошёл весь путь: lock на сервере → перевод USDT → серверная
+          проверка транзакции → открытие выдачи. Если вы тестируете воронку —
+          это успех; напишите, что видели на каждом шаге.
+        </div>
+      </div>
     </section>
   </div></main>
   <footer class="site-footer"><div class="container footer-inner"><a class="brand" href="index.html">Белый<span>Обходчик</span></a><nav aria-label="Ссылки в подвале"><a href="index.html#services">Услуги</a><a href="index.html#faq">Вопросы</a><a href="webapp/index.html">Приложение</a><a href="https://t.me/beliy_obhodchik_bot" target="_blank" rel="noopener noreferrer">Telegram ↗</a></nav><small>© 2026 БелыйОбходчик</small></div></footer>
@@ -126,8 +135,14 @@
 
   var TARIFFS = {
     vps: { rub: 1500, title: "Обход со своим VPS" },
-    dpi: { rub: 1000, title: "Только обход DPI" }
+    dpi: { rub: 1000, title: "Только обход DPI" },
+    test: { rub: 0, usdt: 0.01, title: "Тест-доступ" }
   };
+
+  function revealTest() {
+    var card = el("t-test");
+    if (card) card.hidden = false;
+  }
 
   var el = function (id) { return document.getElementById(id); };
 
@@ -178,6 +193,10 @@
     return Math.ceil(rub / rate * 100) / 100;
   }
 
+  function tariffAmount(tariff, rate) {
+    return tariff.usdt != null ? tariff.usdt : usdtAmount(tariff.rub, rate);
+  }
+
   function formatUsdt(value) {
     return value.toFixed(2) + " USDT";
   }
@@ -190,14 +209,15 @@
       rateEl.textContent = stored.rate + " ₽";
       var radio = document.querySelector("input[name=tariff][value=" + stored.tariff + "]");
       if (radio) radio.checked = true;
+      if (stored.tariff === "test") revealTest();
       return;
     }
     var tariff = TARIFFS[selectedTariff()];
-    sumEl.textContent = formatUsdt(usdtAmount(tariff.rub, CFG.rateFallback));
+    sumEl.textContent = formatUsdt(tariffAmount(tariff, CFG.rateFallback));
     rateEl.textContent = "загрузка…";
     fetchRate().then(function (rate) {
       var used = rate || CFG.rateFallback;
-      sumEl.textContent = formatUsdt(usdtAmount(tariff.rub, used));
+      sumEl.textContent = formatUsdt(tariffAmount(tariff, used));
       rateEl.textContent = Math.round(used * 100) / 100 + " ₽" + (rate ? "" : " (резерв)");
     });
   }
@@ -247,6 +267,8 @@
     el("deliv-tariff").textContent = TARIFFS[tariff].title;
     el("deliv-dpi").hidden = tariff !== "dpi";
     el("deliv-vps").hidden = tariff !== "vps";
+    el("deliv-test").hidden = tariff !== "test";
+    if (tariff === "test") revealTest();
     if (scroll) el("delivery").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -376,6 +398,7 @@
   try { want = new URLSearchParams(window.location.search).get("tariff"); } catch (e) {}
   if (want && TARIFFS[want]) {
     try { history.replaceState(null, "", window.location.pathname); } catch (e) {}
+    if (want === "test") revealTest();
     if (!(paid && paid.tx)) {
       var radio0 = document.querySelector("input[name=tariff][value=" + want + "]");
       var stored0 = lockedStore();

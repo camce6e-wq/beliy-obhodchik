@@ -16,7 +16,7 @@ WINDOW_MINUTES = 60
 LOCK_TTL = 15 * 60
 CLEANUP_INTERVAL = 60
 
-TARIFFS = {"vps": 1500, "dpi": 1000}
+TARIFFS = {"vps": 1500, "dpi": 1000, "test": 0}
 
 locks = {}
 locks_lock = threading.Lock()
@@ -134,7 +134,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": False, "error": "bad tariff"}, 400)
         rub = TARIFFS[tariff]
         rate = get_rate()
-        amount = math.ceil(rub / rate * 100) / 100
+        # ponytail: тест-тариф — фиксированные 0.01 USDT, матч ±0.02 ловит
+        # и 0.02; одновременные тестовые локи могут получить один txid
+        amount = 0.01 if tariff == "test" else math.ceil(rub / rate * 100) / 100
         lock_id = secrets.token_hex(16)
         with locks_lock:
             locks[lock_id] = {
