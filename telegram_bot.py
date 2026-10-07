@@ -209,7 +209,7 @@ DPI_STARS_PRICE = 500  # Через звёзды Telegram (дешевле, т.к
 # Telegram Mini App (веб-приложение внутри Telegram): витрина услуг в стиле сайта.
 # Пустая строка = кнопку приложения скрываем (например, пока не задеплоено).
 WEBAPP_URL = os.environ.get(
-    "WEBAPP_URL", "https://camce6e-wq.github.io/beliy-obhodchik/webapp/index.html"
+    "WEBAPP_URL", "https://beliyobhodchik.fun/webapp/index.html"
 ).strip()
 CALLBACK_COOLDOWN = float(os.environ.get("CALLBACK_COOLDOWN", "2"))
 COMMAND_COOLDOWN = float(os.environ.get("COMMAND_COOLDOWN", "2"))
@@ -657,7 +657,7 @@ class CryptoPayClient:
                 "payload": payload,
                 "allow_anonymous": True,
                 "paid_btn_name": "viewItem",
-                "paid_btn_url": "https://camce6e-wq.github.io/beliy-obhodchik/",
+                "paid_btn_url": "https://beliyobhodchik.fun/",
             },
         )
 

@@ -189,7 +189,7 @@ CI (`.github/workflows/tests.yml`, запускается на каждый push
   powershell -ExecutionPolicy Bypass -File ".\deploy_site.ps1" -CommitMsg "feat(site): описание"
   ```
   Скрипт копирует веб-файлы в репозиторий, коммитит и ждёт сборку Pages.
-  Живой сайт: https://camce6e-wq.github.io/beliy-obhodchik/
+  Живой сайт: https://beliyobhodchik.fun/
 - **Бот** (VPS `89.125.68.226`): после любого изменения бота на `main` выполнить
   ```bash
   bash /opt/beliy-obhodchik/deploy/update.sh

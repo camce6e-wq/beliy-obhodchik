@@ -197,7 +197,7 @@ python telegram_bot.py
 1. Репозиторий уже создан: `github.com/camce6e-wq/beliy-obhodchik`
 2. Бот создан: `@beliy_obhodchik_bot` (токен в `.env`)
 3. Запусти бота: `run_prod_bot.bat` (секреты берутся из `.env`)
-4. Сайт: `https://camce6e-wq.github.io/beliy-obhodchik/`
+4. Сайт: `https://beliyobhodchik.fun/`
 
 **Через 30 минут** у тебя будет работающий бизнес.
 

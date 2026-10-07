@@ -20,10 +20,12 @@
 
 ## Технические
 
-4. **Закрыто (4f8d693).** Серверная верификация оплаты на VPS (`payment_verify.py`):
-   сумма и проверка txid на сервере, выдача только после серверного подтверждения.
-   API доступен через Cloudflare Tunnel (HTTPS). Клиентский гейт `localStorage.bo_paid`
-   больше не обязателен. *Остаётся:* домен + Let's Encrypt вместо временного туннеля.
+4. **Закрыто (4f8d693, домен 8191b4c).** Серверная верификация оплаты на VPS
+   (`payment_verify.py`): сумма и проверка txid на сервере, выдача только после
+   серверного подтверждения. API — `https://api.beliyobhodchik.fun` (Caddy,
+   Let's Encrypt на VPS), сайт — `https://beliyobhodchik.fun` (GitHub Pages,
+   CNAME). Клиентский гейт `localStorage.bo_paid` больше не обязателен.
+   Временный Cloudflare Tunnel отключён.
 
 5. **Нет полноценного typecheck/linter со стилем** — в CI работает
    `ruff --select E9,F` (синтаксис, неопределённые имена, неиспользуемые

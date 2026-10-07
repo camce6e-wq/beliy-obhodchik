@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://camce6e-wq.github.io/beliy-obhodchik/sitemap.xml
+Sitemap: https://beliyobhodchik.fun/sitemap.xml
