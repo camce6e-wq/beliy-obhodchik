@@ -4,6 +4,7 @@
 """
 import json
 import math
+import os
 import secrets
 import threading
 import time
@@ -131,6 +132,10 @@ class Handler(BaseHTTPRequestHandler):
         body = self._read_body()
         tariff = body.get("tariff")
         if tariff not in TARIFFS:
+            return self._json({"ok": False, "error": "bad tariff"}, 400)
+        # тест-тариф закрыт флагом: включается TEST_TARIFF=1 в .env VPS
+        # на время публичных тестов, потом флаг просто удаляется
+        if tariff == "test" and os.environ.get("TEST_TARIFF") != "1":
             return self._json({"ok": False, "error": "bad tariff"}, 400)
         rub = TARIFFS[tariff]
         rate = get_rate()
