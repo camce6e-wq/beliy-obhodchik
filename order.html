@@ -33,6 +33,7 @@
 .deliv-ta{display:block;width:100%;min-height:150px;margin-top:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff;font-family:var(--mono);font-size:.82rem;line-height:1.5;resize:vertical}
 .deliv-ta:focus{outline:2px solid var(--violet);outline-offset:1px}
 #t-test[hidden]{display:none}
+#pay .pay-amount[hidden],#pay .pay-row[hidden]{display:none}
 </style></head>
 <body>
   <a class="skip-link" href="#main">К содержимому</a>
@@ -79,7 +80,7 @@
 
     <section class="pay-block" id="delivery" hidden aria-labelledby="deliv-title">
       <p class="eyebrow">Шаг 2</p><h2 id="deliv-title">Получение доступа</h2>
-      <p class="pay-hint">Оплата подтверждена. Тариф: <strong id="deliv-tariff">—</strong>.</p>
+      <p class="pay-hint">Тариф: <strong id="deliv-tariff">—</strong>.</p>
 
       <div id="deliv-dpi" hidden>
         <div class="pay-row"><a class="button" href="setup_nfqws.sh" download>Скачать setup_nfqws.sh</a></div>
@@ -108,10 +109,10 @@
         <div class="pay-row" style="margin-top:14px"><button class="button" type="button" id="deliv-zip">Скачать конфиги (.zip)</button></div>
       </div>
       <div id="deliv-test" hidden>
-        <div class="pay-note"><strong>Тест пройден</strong>
-          Платёж прошёл весь путь: lock на сервере → перевод USDT → серверная
-          проверка транзакции → открытие выдачи. Если вы тестируете воронку —
-          это успех; напишите, что видели на каждом шаге.
+        <div class="pay-note"><strong>Тест-доступ</strong>
+          Доступ открыт для проверки воронки. Пройдите страницу до конца и
+          напишите, что видели на каждом шаге — так мы поймём, где спотыкаются
+          пользователи.
         </div>
       </div>
     </section>
@@ -141,7 +142,10 @@
     windowMinutes: 60,
     rateFallback: 85,
     pollIntervalMs: 10000,
-    pollLimitMs: 600000
+    pollLimitMs: 600000,
+    // Временный флаг на период тестов: оплата отключена, доступ выдаётся сразу.
+    // Вернуть false, когда тесты закончатся.
+    paymentDisabled: true
   };
 
   var TARIFFS = {
@@ -283,6 +287,31 @@
     if (scroll) el("delivery").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  // Тестовый режим: оплата скрыта и не вызывается, доступ выдаётся сразу.
+  function enableTestMode(tariffKey, scroll) {
+    removePaid();
+    try { localStorage.removeItem("bo_pay"); } catch (e) {}
+    locked = null;
+    polling = false;
+    document
+      .querySelectorAll("#pay .pay-hint, #pay .pay-amount, #pay .pay-row, #pay .pay-note")
+      .forEach(function (node) { node.hidden = true; });
+    var aside = document.querySelector(".detail-aside");
+    if (aside) aside.hidden = true;
+    var h1 = document.querySelector("h1");
+    if (h1) h1.textContent = "Тест-доступ без оплаты";
+    var lead = document.querySelector(".detail-hero .lead");
+    if (lead) lead.textContent = "Пока идёт тест, оплата отключена: выберите тариф и сразу получите доступ.";
+    document.querySelectorAll(".sticky-cta, .header-inner .button-small").forEach(function (node) {
+      node.textContent = "Получить доступ";
+    });
+    var testHint = document.querySelector("#t-test span");
+    if (testHint) testHint.textContent = "Бесплатный доступ на время тестов";
+    savePaid({ tx: "TEST-FREE", tariff: tariffKey, at: Date.now() });
+    setStatus("Оплата отключена на время тестов — доступ бесплатный.", "ok");
+    showDelivery(!!scroll);
+  }
+
   function confirmPayment(txid, noScroll) {
     polling = false;
     var paid = paidStore();
@@ -337,6 +366,7 @@
 
   document.querySelectorAll("input[name=tariff]").forEach(function (input) {
     input.addEventListener("change", function () {
+      if (CFG.paymentDisabled) { enableTestMode(selectedTariff(), true); return; }
       polling = false;
       try { localStorage.removeItem("bo_pay"); } catch (e) {}
       locked = null;
@@ -423,10 +453,16 @@
     }
   }
 
-  renderAmount();
-  ensureLocked().catch(function () {});
-
-  if (paid && paid.tx) confirmPayment(paid.tx, true);
+  if (CFG.paymentDisabled) {
+    var initialTariff = (want === "vps" || want === "dpi") ? want : "test";
+    var initialRadio = document.querySelector("input[name=tariff][value=" + initialTariff + "]");
+    if (initialRadio) initialRadio.checked = true;
+    enableTestMode(initialTariff, false);
+  } else {
+    renderAmount();
+    ensureLocked().catch(function () {});
+    if (paid && paid.tx) confirmPayment(paid.tx, true);
+  }
 })();
 </script>
 </body></html>
