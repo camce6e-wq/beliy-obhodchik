@@ -288,7 +288,20 @@
   }
 
   // Тестовый режим: оплата скрыта и не вызывается, доступ выдаётся сразу.
+  // Выдача фиксируется на сервере (/api/test-grant, status=test) — fire-and-forget,
+  // доступ не зависит от ответа. Идемпотентно: повторный POST с тем же grant не дублирует запись.
+  function reportTestGrant(grant, tariffKey) {
+    try {
+      fetch(CFG.apiUrl + "/api/test-grant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ grant_id: grant, tariff: tariffKey })
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   function enableTestMode(tariffKey, scroll) {
+    var prev = paidStore();
     removePaid();
     try { localStorage.removeItem("bo_pay"); } catch (e) {}
     locked = null;
@@ -307,7 +320,13 @@
     });
     var testHint = document.querySelector("#t-test span");
     if (testHint) testHint.textContent = "Бесплатный доступ на время тестов";
-    savePaid({ tx: "TEST-FREE", tariff: tariffKey, at: Date.now() });
+    var paid = { tx: "TEST-FREE", tariff: tariffKey, at: Date.now() };
+    var grant = (prev && prev.tariff === tariffKey && prev.grant)
+      ? prev.grant
+      : ("test_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+    paid.grant = grant;
+    savePaid(paid);
+    if (!prev || prev.tariff !== tariffKey || !prev.grant) reportTestGrant(grant, tariffKey);
     setStatus("Оплата отключена на время тестов — доступ бесплатный.", "ok");
     showDelivery(!!scroll);
   }
