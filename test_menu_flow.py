@@ -109,8 +109,10 @@ cb_handler = [h for h in bot.bot.callback_query_handlers if "function" in h][-1]
 cb_handler(call("cmd_buy"))
 assert sent, "cmd_buy должен что-то отправить"
 text = " ".join(s["text"] for s in sent)
-assert "1500" in text and "750" in text, "цены VPS 1500₽/750⭐ должны быть в тексте"
-print("OK 2/6: cmd_buy -> инструкция с ценами 1500₽/750⭐")
+assert "1500" not in text and "750" not in text, (
+    f"цен быть не должно в тестовом режиме: {text[:200]}"
+)
+print("OK 2/6: cmd_buy -> бесплатная инструкция без цен")
 
 sent.clear()
 bot.last_cmd.clear()
@@ -121,11 +123,11 @@ for h in bot.bot.message_handlers:
         break
 assert process_ip, "хендлер ввода IP не найден"
 process_ip(msg("95.217.1.1"))
-assert sent, "после ввода IP должны быть кнопки оплаты"
-if not any(s["markup"] for s in sent):
-    print("SENT:", [s["text"][:80] for s in sent])
-assert any(s["markup"] for s in sent), "должны быть кнопки оплаты"
-print("OK 3/6: ввод IP -> кнопки оплаты")
+assert sent, "после ввода IP должно быть сообщение про донора"
+assert any(s["markup"] for s in sent), "должны быть кнопки установки"
+joined = " ".join(s["text"] for s in sent)
+assert "Оплатить" not in joined, f"кнопок/текста оплаты быть не должно: {joined[:200]}"
+print("OK 3/6: ввод IP -> выбор установки (без оплаты)")
 
 # 4) Отмена заказа -> сразу возврат к приветствию
 sent.clear()
@@ -187,10 +189,6 @@ known = {
     "create_new",
     "install_self",
     "install_ssh",
-    "make_dpi_payment",
-    "make_payment",
-    "pay_dpi_stars",
-    "pay_stars",
     "retry_ssh_install",
     "update_existing",
 }
@@ -262,19 +260,19 @@ sent.clear()
 bot.last_cmd.clear()
 deep(msg("/start vps"))
 text = " ".join(s["text"] for s in sent)
-assert "1500" in text and "750" in text, (
-    "deep-link vps должен открывать покупку с ценами"
+assert sent, "deep-link vps должен открывать флоу"
+assert "1500" not in text and "750" not in text, (
+    f"цен быть не должно: {text[:200]}"
 )
-print("OK 11/13: /start vps -> покупка полного пакета")
+print("OK 11/13: /start vps -> бесплатная настройка полного пакета")
 
 sent.clear()
 bot.last_cmd.clear()
 deep(msg("/start dpi"))
 text = " ".join(s["text"] for s in sent)
-assert "1000" in text and "500" in text, (
-    "deep-link dpi должен открывать заказ обхода DPI"
-)
-print("OK 12/13: /start dpi -> заказ обхода DPI")
+assert sent, "deep-link dpi должен открывать флоу"
+assert "бесплатно" in text.lower(), f"deep-link dpi должен вести к бесплатной выдаче: {text[:200]}"
+print("OK 12/13: /start dpi -> бесплатная выдача обхода DPI")
 
 sent.clear()
 bot.last_cmd.clear()

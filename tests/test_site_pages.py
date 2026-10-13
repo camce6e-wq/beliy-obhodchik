@@ -15,7 +15,6 @@ PAGES = [
     "service-claude.html",
     "service-transfer.html",
     "order.html",
-    "pay-usdt.html",
     "webapp/index.html",
 ]
 
