@@ -61,7 +61,6 @@ def _make_bot(ctx):
     bot = tb.AutoConfigBot(tb.TELEGRAM_BOT_TOKEN)
     bot.sent_msgs = []
     bot.sent_markups = []
-    bot.sent_invoices = []
     bot.sent_docs = []
 
     def fake_send_message(chat_id, text, **kw):
@@ -73,15 +72,8 @@ def _make_bot(ctx):
         bot.sent_docs.append(kw.get("caption") or "")
         return SimpleNamespace(message_id=1)
 
-    def fake_send_invoice(
-        chat_id, title, description, payload, provider_token, currency, prices, **kw
-    ):
-        bot.sent_invoices.append({"payload": payload, "amount": prices[0].amount})
-        return SimpleNamespace(message_id=1)
-
     bot.bot.send_message = fake_send_message
     bot.bot.send_document = fake_send_document
-    bot.bot.send_invoice = fake_send_invoice
     return bot
 
 
